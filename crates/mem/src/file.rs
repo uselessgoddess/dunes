@@ -1,16 +1,17 @@
+use std::{
+  alloc::Layout,
+  fmt::{self, Formatter},
+  fs::{File, OpenOptions},
+  io,
+  mem::MaybeUninit,
+  path::Path,
+  ptr::NonNull,
+  slice,
+};
+
 use {
   crate::{Error::CapacityOverflow, Page, RawMem, Result},
   memmap2::{MmapMut, MmapOptions},
-  std::{
-    alloc::Layout,
-    fmt::{self, Formatter},
-    fs::{File, OpenOptions},
-    io,
-    mem::MaybeUninit,
-    path::Path,
-    ptr::NonNull,
-    slice,
-  },
 };
 
 pub struct FileMapped<T> {
@@ -56,7 +57,10 @@ impl<T> FileMapped<T> {
   }
 }
 
-use {crate::place::RawPlace, bytemuck::Pod};
+use {
+  crate::{place::RawPlace, utils},
+  bytemuck::Pod,
+};
 
 impl<T: Pod> RawMem for FileMapped<T> {
   type Item = T;
@@ -121,7 +125,7 @@ impl<T> Drop for FileMapped<T> {
 
 impl<T> fmt::Debug for FileMapped<T> {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    f.debug_struct("FileMapped")
+    utils::debug_mem(f, &self.place, "FileMapped")?
       .field("mmap", &self.map)
       .field("file", &self.file)
       .finish()

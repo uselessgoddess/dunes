@@ -78,6 +78,7 @@ macro_rules! memory {
   )*};
 }
 
+#[cfg(feature = "tempfile")]
 use std::{fs::File, io, path::Path};
 
 #[cfg(feature = "tempfile")]
