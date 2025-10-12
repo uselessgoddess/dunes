@@ -1,18 +1,33 @@
 // at your own risk, at your own risk, but right now there is no normal way
 // to write single-line unsafe functions
-#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(unsafe_op_in_unsafe_fn, clippy::missing_transmute_annotations)]
 extern crate core;
 
 #[cfg(feature = "memmap")]
 mod file;
+mod place;
 mod pre;
 mod raw;
 mod uninit;
 
+pub(crate) use place::RawPlace;
 pub use {
   pre::PreAlloc,
   raw::{Error, Page, RawMem},
 };
+
+mod utils {
+  use {crate::place::RawPlace, std::fmt};
+
+  pub fn debug_mem<'a, 'b: 'a, T>(
+    f: &'a mut fmt::Formatter<'b>,
+    buf: &RawPlace<T>,
+    alt: &str,
+  ) -> Result<fmt::DebugStruct<'a, 'b>, fmt::Error> {
+    write!(f, "{:?} ", buf)?;
+    Ok(f.debug_struct(alt))
+  }
+}
 
 #[cfg(feature = "memmap")]
 pub use file::FileMapped;

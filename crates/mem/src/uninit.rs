@@ -2,10 +2,18 @@ use std::{
   mem,
   mem::MaybeUninit,
   ptr::{self, NonNull},
+  slice,
 };
 
 pub unsafe fn assume<T>(uninit: &mut [MaybeUninit<T>]) -> &mut [T] {
   unsafe { &mut *(uninit as *mut [MaybeUninit<T>] as *mut [T]) }
+}
+
+pub const unsafe fn as_uninit_slice_mut<'a, T>(
+  ptr: NonNull<[T]>,
+) -> &'a mut [MaybeUninit<T>] {
+  // SAFETY: the caller must uphold the safety contract for `as_uninit_slice`.
+  unsafe { slice::from_raw_parts_mut(ptr.cast().as_ptr(), ptr.len()) }
 }
 
 pub fn fill<T: Clone>(uninit: &mut [MaybeUninit<T>], val: T) -> &mut [T] {
@@ -47,7 +55,8 @@ struct Guard<'a, T> {
 impl<T> Drop for Guard<'_, T> {
   fn drop(&mut self) {
     let slice = &mut self.slice[..self.init];
-    // SAFETY: Valid elements have just been filled into `self` so it is initialized
+    // SAFETY: Valid elements have just been filled
+    //  into `self` so it is initialized
     if !slice.is_empty() {
       unsafe { ptr::drop_in_place(slice as *mut [MaybeUninit<T>] as *mut [T]) }
     }

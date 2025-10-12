@@ -6,18 +6,17 @@ use {
     fmt::{self, Formatter},
     fs::{File, OpenOptions},
     io,
-    marker::PhantomData,
+    mem::MaybeUninit,
     path::Path,
-    ptr::{self, NonNull},
+    ptr::NonNull,
     slice,
   },
 };
 
 pub struct FileMapped<T> {
-  pub(crate) file: File,
-  len: usize,
-  pub map: Option<MmapMut>,
-  _marker: PhantomData<T>,
+  file: File,
+  map: Option<MmapMut>,
+  place: RawPlace<T>,
 }
 
 impl<T> FileMapped<T> {
@@ -29,7 +28,7 @@ impl<T> FileMapped<T> {
       file.set_len(MIN_PAGE_SIZE)?;
     }
 
-    Ok(Self { file, len: 0, map: None, _marker: PhantomData })
+    Ok(Self { file, map: None, place: RawPlace::dangling() })
   }
 
   fn options() -> OpenOptions {
@@ -52,37 +51,27 @@ impl<T> FileMapped<T> {
     Ok(self.map.as_mut().unwrap())
   }
 
-  fn as_slice_ptr(&self) -> NonNull<[T]> {
-    let slice = if let Some(map) = self.map.as_ref() {
-      NonNull::from(&map[..]).cast::<T>()
-    } else {
-      debug_assert_eq!(0, self.len, "non-empty data without mapping");
-      NonNull::dangling()
-    };
-    NonNull::slice_from_raw_parts(slice.cast(), self.len)
-  }
-
   fn capacity(&self) -> Option<usize> {
     self.map.as_ref().map(|map| map.len() / size_of::<T>())
   }
 }
 
-use bytemuck::Pod;
+use {crate::place::RawPlace, bytemuck::Pod};
 
 impl<T: Pod> RawMem for FileMapped<T> {
   type Item = T;
 
   fn as_slice(&self) -> &[Self::Item] {
-    unsafe { self.as_slice_ptr().as_ref() }
+    unsafe { self.place.as_slice() }
   }
 
   fn as_mut_slice(&mut self) -> &mut [Self::Item] {
-    unsafe { self.as_slice_ptr().as_mut() }
+    unsafe { self.place.as_mut_slice() }
   }
 
   fn grow(&mut self, addition: usize) -> Result<Page<'_, Self::Item>> {
     // grow from initialized part that means `len`
-    let cap = self.len.checked_add(addition).ok_or(CapacityOverflow)?;
+    let cap = self.place.len().checked_add(addition).ok_or(CapacityOverflow)?;
 
     // use layout to prevent all capacity bugs
     let layout = Layout::array::<T>(cap).map_err(|_| CapacityOverflow)?;
@@ -99,8 +88,9 @@ impl<T: Pod> RawMem for FileMapped<T> {
 
     let ptr = NonNull::from(self.map_replace(new)?.as_mut());
     // SAFETY: provide valid lifetime inferred from inner `buf`
-    let uninit = unsafe { slice::from_raw_parts_mut(ptr.cast().as_ptr(), cap) };
-    Ok(Page { uninit: &mut uninit[self.len..], len: Some(&mut self.len) })
+    let uninit: &mut [MaybeUninit<T>] =
+      unsafe { slice::from_raw_parts_mut(ptr.cast().as_ptr(), cap) };
+    Ok(self.place.grow(uninit))
   }
 
   fn shrink(&mut self, shrink: usize) -> Result<()> {
@@ -117,7 +107,7 @@ impl<T: Pod> RawMem for FileMapped<T> {
     self.file.set_len(new)?;
 
     let _ = self.map_replace(new)?;
-    self.len = cap;
+    self.place.shrink_to(cap);
 
     Ok(())
   }
