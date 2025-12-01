@@ -55,6 +55,7 @@ impl<T, E: Debug> Report for Result<T, E> {
 
 define_impls! {
     impl RawMem: {
+        mem::Alloc::new(),
         mem::TempFile::new().unwrap() => in all(feature = "tempfile", not(miri)),
     } for [
         miri::miri as miri,
