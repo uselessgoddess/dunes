@@ -3,6 +3,7 @@
 #![allow(unsafe_op_in_unsafe_fn, clippy::missing_transmute_annotations)]
 extern crate core;
 
+mod alloc;
 #[cfg(feature = "memmap")]
 mod file;
 mod place;
@@ -12,6 +13,7 @@ mod uninit;
 
 pub(crate) use place::RawPlace;
 pub use {
+  alloc::Alloc,
   pre::PreAlloc,
   raw::{Error, Page, RawMem},
 };
