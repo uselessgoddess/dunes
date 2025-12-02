@@ -47,7 +47,6 @@ macro_rules! memory {
 
     const _: () = {
       use std::{
-        mem::MaybeUninit,
         fmt::{self, Formatter},
       };
 
