@@ -1,8 +1,4 @@
-use {
-  dunes_trees::{SizeBalanced, Store, Tree},
-  proptest::prelude::*,
-  std::collections::HashSet,
-};
+use {dunes_trees::{SizeBalanced, Store, Tree}, proptest::prelude::*};
 
 proptest! {
   #[test]
