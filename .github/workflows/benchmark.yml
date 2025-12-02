@@ -44,6 +44,7 @@ jobs:
         with:
           tool: 'cargo'
           output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           # Don't save or push on PRs, just show results in summary
           save-data-file: false
           comment-on-alert: true
