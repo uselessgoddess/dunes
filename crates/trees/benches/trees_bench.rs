@@ -5,7 +5,7 @@ extern crate test;
 mod common;
 
 use {
-  common::{Store, TreapStore},
+  common::Store,
   std::hint::black_box,
   test::Bencher,
   trees::{Idx, Tree},
@@ -24,16 +24,6 @@ impl<T: Idx> BenchStore<T> for Store<T> {
 
   fn reset(&mut self) {
     Store::reset(self)
-  }
-}
-
-impl<T: Idx> BenchStore<T> for TreapStore<T> {
-  fn new(capacity: usize) -> Self {
-    TreapStore::new(capacity)
-  }
-
-  fn reset(&mut self) {
-    TreapStore::reset(self)
   }
 }
 
@@ -134,47 +124,4 @@ fn sbt_full_cycle_100(b: &mut Bencher) {
 #[bench]
 fn sbt_full_cycle_1000(b: &mut Bencher) {
   bench_insert_remove_impl::<Store<usize>, usize>(b, 1_000);
-}
-
-// Treap Insert Benchmarks
-#[bench]
-fn treap_insert_100(b: &mut Bencher) {
-  bench_insert_impl::<TreapStore<usize>, usize>(b, 100);
-}
-
-#[bench]
-fn treap_insert_1000(b: &mut Bencher) {
-  bench_insert_impl::<TreapStore<usize>, usize>(b, 1_000);
-}
-
-#[bench]
-fn treap_insert_10000(b: &mut Bencher) {
-  bench_insert_impl::<TreapStore<usize>, usize>(b, 10_000);
-}
-
-// Treap Insert + Search Benchmarks
-#[bench]
-fn treap_insert_search_100(b: &mut Bencher) {
-  bench_insert_and_search_impl::<TreapStore<usize>, usize>(b, 100);
-}
-
-#[bench]
-fn treap_insert_search_1000(b: &mut Bencher) {
-  bench_insert_and_search_impl::<TreapStore<usize>, usize>(b, 1_000);
-}
-
-#[bench]
-fn treap_insert_search_10000(b: &mut Bencher) {
-  bench_insert_and_search_impl::<TreapStore<usize>, usize>(b, 10_000);
-}
-
-// Treap Full Cycle Benchmarks
-#[bench]
-fn treap_full_cycle_100(b: &mut Bencher) {
-  bench_insert_remove_impl::<TreapStore<usize>, usize>(b, 100);
-}
-
-#[bench]
-fn treap_full_cycle_1000(b: &mut Bencher) {
-  bench_insert_remove_impl::<TreapStore<usize>, usize>(b, 1_000);
 }

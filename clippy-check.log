@@ -1,0 +1,14 @@
+warning: method `reset` is never used
+  --> crates/trees/tests/common/mod.rs:32:10
+   |
+10 | impl<T> VecStore<T> {
+   | ------------------- method in this implementation
+...
+32 |   pub fn reset(&mut self) {
+   |          ^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `trees` (test "proptest") generated 1 warning
+warning: `trees` (test "basic") generated 1 warning (1 duplicate)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.05s

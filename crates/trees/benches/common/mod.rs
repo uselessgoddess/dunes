@@ -1,4 +1,4 @@
-use trees::{Idx, Node, SizeBalanced, Treap, Tree};
+use trees::{Idx, Node, SizeBalanced, Tree};
 
 /// Vector-backed tree store for testing and benchmarking.
 /// Generic over the tree implementation strategy.
@@ -25,7 +25,7 @@ impl<T> VecStore<T> {
   }
 }
 
-// Base Tree trait implementation (shared by both SBT and Treap)
+// Base Tree trait implementation for SBT
 impl<T: Idx> Tree<T> for VecStore<T> {
   #[inline(always)]
   fn get(&self, idx: T) -> Option<Node<T>> {
@@ -67,67 +67,5 @@ impl<T: Idx> Tree<T> for VecStore<T> {
 // SBT strategy
 impl<T: Idx> SizeBalanced<T> for VecStore<T> {}
 
-// Treap strategy - need a newtype to provide different insert/remove
-#[derive(Debug, Clone)]
-pub struct TreapVecStore<T>(VecStore<T>);
-
-impl<T> TreapVecStore<T> {
-  pub fn new(capacity: usize) -> Self {
-    Self(VecStore::new(capacity))
-  }
-
-  #[inline]
-  #[allow(dead_code)]
-  pub fn nodes(&self) -> &[Node<T>] {
-    self.0.nodes()
-  }
-
-  pub fn reset(&mut self) {
-    self.0.reset()
-  }
-}
-
-impl<T: Idx> Tree<T> for TreapVecStore<T> {
-  #[inline(always)]
-  fn get(&self, idx: T) -> Option<Node<T>> {
-    self.0.get(idx)
-  }
-
-  #[inline(always)]
-  fn set(&mut self, idx: T, node: Node<T>) {
-    self.0.set(idx, node)
-  }
-
-  #[inline(always)]
-  fn left_mut(&mut self, idx: T) -> Option<&mut T> {
-    self.0.nodes.get_mut(idx.as_usize())?.left.as_mut()
-  }
-
-  #[inline(always)]
-  fn right_mut(&mut self, idx: T) -> Option<&mut T> {
-    self.0.nodes.get_mut(idx.as_usize())?.right.as_mut()
-  }
-
-  #[inline(always)]
-  fn is_left_of(&self, first: T, second: T) -> bool {
-    self.0.is_left_of(first, second)
-  }
-
-  fn insert(&mut self, root: Option<T>, idx: T) -> Option<T> {
-    self.insert_treap(root, idx)
-  }
-
-  fn remove(&mut self, root: Option<T>, idx: T) -> Option<T> {
-    self.remove_treap(root, idx)
-  }
-}
-
-impl<T: Idx> Treap<T> for TreapVecStore<T> {}
-
-// Type aliases for convenience
-#[allow(dead_code)]
-pub type SbtStore<T> = VecStore<T>;
-pub type TreapStore<T> = TreapVecStore<T>;
-
-// Keep old names for backward compatibility during migration
+// Type alias for convenience
 pub type Store<T> = VecStore<T>;
