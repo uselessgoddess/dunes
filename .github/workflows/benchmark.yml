@@ -20,7 +20,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Run benchmarks
-        run: cargo bench --workspace -- --output-format bencher | tee output.txt
+        run: cargo bench --package dunes-trees --bench sbt_bench -- --output-format bencher | tee output.txt
 
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
