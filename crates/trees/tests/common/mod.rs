@@ -1,6 +1,7 @@
 use dunes_trees::{Idx, Node, SizeBalanced, Treap, Tree};
 
-/// Simple vector-backed tree store for testing and benchmarking (SBT implementation)
+/// Simple vector-backed tree store for testing and benchmarking
+/// (SBT implementation)
 #[derive(Debug, Clone)]
 pub struct Store<T> {
   nodes: Vec<Node<T>>,
