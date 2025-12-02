@@ -62,7 +62,8 @@ impl<'a, T: Pod> Page<'a, T> {
   ///
   /// # Safety
   ///
-  /// When calling this method, you have to ensure that one of the following is true:
+  /// When calling this method, you have to ensure that one of the
+  /// following is true:
   ///
   /// * memory already initialized as [`Item`]
   ///
@@ -97,7 +98,8 @@ impl<'a, T: Clone> Page<'a, T> {
 
 impl<'a, T: Zeroable> Page<'a, T> {
   /// # Examples
-  /// Correct usage of this function: initializing an [`Zeroable`](Zeroable) types with zeroes:
+  /// Correct usage of this function: initializing an
+  /// [`Zeroable`](Zeroable) types with zeroes:
   /// ```
   /// # use mem::Error;
   /// use mem::{Alloc, RawMem};

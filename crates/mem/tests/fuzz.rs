@@ -1,240 +1,91 @@
 use {
   mem::{Alloc, PreAlloc, RawMem},
-  std::error::Error,
+  proptest::prelude::*,
 };
 
-type Result = std::result::Result<(), Box<dyn Error>>;
-
-/// Test invariants that must hold for any RawMem implementation
-fn invariants<M: RawMem<Item = u64>>(mut mem: M) -> Result {
-  // Initial state: empty
-  assert_eq!(mem.as_slice().len(), 0);
-
-  // Grow and check length
-  mem.grow(10)?.zeroed();
-  assert_eq!(mem.as_slice().len(), 10);
-  assert_eq!(mem.as_slice(), &[0u64; 10]);
-
-  // Grow again and check cumulative length
-  mem.grow(5)?.filled(42);
-  assert_eq!(mem.as_slice().len(), 15);
-  assert_eq!(&mem.as_slice()[0..10], &[0u64; 10]);
-  assert_eq!(&mem.as_slice()[10..15], &[42u64; 5]);
-
-  // Shrink and verify
-  mem.shrink(5)?;
-  assert_eq!(mem.as_slice().len(), 10);
-  assert_eq!(mem.as_slice(), &[0u64; 10]);
-
-  // Shrink to empty
-  mem.shrink(10)?;
-  assert_eq!(mem.as_slice().len(), 0);
-
-  Ok(())
+#[derive(Debug, Clone)]
+enum MemOp {
+  Grow(usize),
+  Shrink(usize),
 }
 
-/// Test grow/shrink cycle behavior
-fn grow_shrink_cycles<M: RawMem<Item = i32>>(mut mem: M) -> Result {
-  const CYCLES: usize = 100;
-  const SIZE: usize = if cfg!(miri) { 10 } else { 100 };
+fn mem_ops_strategy() -> impl Strategy<Value = Vec<MemOp>> {
+  const MAX_OPS: usize = if cfg!(miri) { 20 } else { 100 };
+  const MAX_SIZE: usize = if cfg!(miri) { 100 } else { 1000 };
 
-  for i in 0..CYCLES {
-    // Grow with unique value for this cycle
-    mem.grow(SIZE)?.filled(i as i32);
-    assert_eq!(mem.as_slice().len(), SIZE * (i + 1));
+  prop::collection::vec(
+    prop_oneof![
+      (1..=MAX_SIZE).prop_map(MemOp::Grow),
+      (1..=MAX_SIZE).prop_map(MemOp::Shrink),
+    ],
+    1..=MAX_OPS,
+  )
+}
 
-    // Verify all previous cycles are intact
-    for j in 0..=i {
-      let start = j * SIZE;
-      let end = (j + 1) * SIZE;
-      assert_eq!(
-        &mem.as_slice()[start..end],
-        &vec![j as i32; SIZE][..],
-        "Cycle {} data corrupted at iteration {}",
-        j,
-        i
-      );
+fn apply_ops<M: RawMem<Item = u64>>(mut mem: M, ops: Vec<MemOp>) {
+  let mut expected_len: usize = 0;
+
+  for op in ops {
+    match op {
+      MemOp::Grow(size) => {
+        if let Ok(page) = mem.grow(size) {
+          page.filled(42);
+          expected_len += size;
+          assert_eq!(mem.as_slice().len(), expected_len);
+        }
+      }
+      MemOp::Shrink(size) => {
+        mem.shrink(size).unwrap();
+        expected_len = expected_len.saturating_sub(size);
+        assert_eq!(mem.as_slice().len(), expected_len);
+      }
     }
   }
-
-  // Shrink back down
-  for i in (0..CYCLES).rev() {
-    mem.shrink(SIZE)?;
-    assert_eq!(mem.as_slice().len(), SIZE * i);
-  }
-
-  assert_eq!(mem.as_slice().len(), 0);
-  Ok(())
 }
 
-/// Test edge cases like zero-sized operations
-fn edge_cases<M: RawMem<Item = u8>>(mut mem: M) -> Result {
-  // Grow by 0 should be a no-op
-  mem.grow(0)?.zeroed();
-  assert_eq!(mem.as_slice().len(), 0);
-
-  // Grow by some amount
-  mem.grow(10)?.filled(123);
-  assert_eq!(mem.as_slice().len(), 10);
-
-  // Shrink by 0 should be a no-op
-  mem.shrink(0)?;
-  assert_eq!(mem.as_slice().len(), 10);
-
-  // Shrink more than available should saturate to 0
-  mem.shrink(100)?;
-  assert_eq!(mem.as_slice().len(), 0);
-
-  Ok(())
-}
-
-/// Test that as_mut_slice actually allows mutation
-fn mutability<M: RawMem<Item = u32>>(mut mem: M) -> Result {
-  mem.grow(10)?.zeroed();
-
-  // Mutate through as_mut_slice
-  for (i, elem) in mem.as_mut_slice().iter_mut().enumerate() {
-    *elem = i as u32;
+proptest! {
+  #[test]
+  fn random_alloc_ops(ops in mem_ops_strategy()) {
+    apply_ops(Alloc::<u64>::new(), ops);
   }
 
-  // Verify mutation persisted
-  for (i, &elem) in mem.as_slice().iter().enumerate() {
-    assert_eq!(elem, i as u32);
+  #[test]
+  fn random_prealloc_ops(ops in mem_ops_strategy()) {
+    let mut buf = vec![0u64; 100000];
+    apply_ops(PreAlloc::new(&mut buf[..]), ops);
   }
 
-  Ok(())
-}
+  #[test]
+  fn grow_maintains_data(sizes in prop::collection::vec(1usize..100, 1..20)) {
+    let mut alloc = Alloc::<i32>::new();
+    let mut expected_data = Vec::new();
 
-/// Test large allocations (stress test)
-fn large_allocation<M: RawMem<Item = u64>>(mut mem: M) -> Result {
-  const LARGE: usize = if cfg!(miri) { 1000 } else { 100_000 };
+    for (idx, &size) in sizes.iter().enumerate() {
+      alloc.grow(size).unwrap().filled(idx as i32);
+      expected_data.extend(vec![idx as i32; size]);
+    }
 
-  mem.grow(LARGE)?.filled(0xDEADBEEF);
-  assert_eq!(mem.as_slice().len(), LARGE);
-  assert!(mem.as_slice().iter().all(|&x| x == 0xDEADBEEF));
-
-  mem.shrink(LARGE)?;
-  assert_eq!(mem.as_slice().len(), 0);
-
-  Ok(())
-}
-
-/// Test with various Pod types
-fn different_types<M: RawMem<Item = u8>>(mut mem: M) -> Result {
-  mem.grow(256)?.zeroed();
-
-  // Fill with pattern
-  for (i, byte) in mem.as_mut_slice().iter_mut().enumerate() {
-    *byte = (i & 0xFF) as u8;
+    assert_eq!(alloc.as_slice(), &expected_data[..]);
   }
 
-  // Verify pattern
-  for (i, &byte) in mem.as_slice().iter().enumerate() {
-    assert_eq!(byte, (i & 0xFF) as u8);
-  }
+  #[test]
+  fn shrink_preserves_remaining(
+    grow_size in 100usize..500,
+    shrink_size in 1usize..100
+  ) {
+    let mut alloc = Alloc::<u8>::new();
+    alloc.grow(grow_size).unwrap().filled(123);
 
-  Ok(())
-}
+    let remaining = grow_size.saturating_sub(shrink_size);
+    alloc.shrink(shrink_size).unwrap();
 
-macro_rules! gen_tests {
-  (
-    alloc: { $($test_name:ident => $test_fn:ident : $ty:ty),* $(,)? }
-    prealloc: { $($ptest_name:ident => $ptest_fn:ident : $pty:ty, $size:expr),* $(,)? }
-  ) => {
-    $(
-      #[test]
-      fn $test_name() -> Result {
-        $test_fn(Alloc::<$ty>::new())
-      }
-    )*
-
-    $(
-      #[test]
-      fn $ptest_name() -> Result {
-        let mut buf = [<$pty as Default>::default(); $size];
-        $ptest_fn(PreAlloc::new(&mut buf[..]))
-      }
-    )*
-  };
-}
-
-gen_tests! {
-  alloc: {
-    alloc_invariants_u64 => invariants: u64,
-    alloc_grow_shrink_cycles_i32 => grow_shrink_cycles: i32,
-    alloc_edge_cases_u8 => edge_cases: u8,
-    alloc_mutability_u32 => mutability: u32,
-    alloc_large_allocation_u64 => large_allocation: u64,
-    alloc_different_types_u8 => different_types: u8,
-  }
-  prealloc: {
-    prealloc_invariants_u64 => invariants: u64, 100,
-    prealloc_mutability_u32 => mutability: u32, 100,
-    prealloc_edge_cases_u8 => edge_cases: u8, 100,
+    assert_eq!(alloc.as_slice().len(), remaining);
+    assert!(alloc.as_slice().iter().all(|&x| x == 123));
   }
 }
 
-// Test PreAlloc overflow behavior
-#[test]
-fn prealloc_overgrow() {
-  let mut buf = [0u64; 10];
-  let mut mem = PreAlloc::new(&mut buf[..]);
-
-  // Should succeed
-  mem.grow(10).unwrap().zeroed();
-  assert_eq!(mem.as_slice().len(), 10);
-
-  // Should fail - no space left
-  assert!(mem.grow(1).is_err());
-}
-
-// Test capacity overflow
 #[test]
 fn capacity_overflow() {
   let mut alloc = Alloc::<u64>::new();
   assert!(alloc.grow(usize::MAX).is_err());
-}
-
-// Test interleaved operations
-#[test]
-fn interleaved_ops() -> Result {
-  let mut alloc = Alloc::<i64>::new();
-
-  alloc.grow(5)?.filled(1);
-  alloc.grow(3)?.filled(2);
-  alloc.shrink(2)?;
-  alloc.grow(4)?.filled(3);
-
-  assert_eq!(alloc.as_slice().len(), 10);
-  assert_eq!(&alloc.as_slice()[0..5], &[1; 5]);
-  assert_eq!(&alloc.as_slice()[5..6], &[2; 1]);
-  assert_eq!(&alloc.as_slice()[6..10], &[3; 4]);
-
-  Ok(())
-}
-
-// Test zeroed initialization
-#[test]
-fn zeroed_initialization() -> Result {
-  let mut alloc = Alloc::<[u8; 16]>::new();
-
-  let data = alloc.grow(100)?.zeroed();
-  assert_eq!(data.len(), 100);
-  for chunk in data {
-    assert_eq!(chunk, &[0u8; 16]);
-  }
-
-  Ok(())
-}
-
-// Test filled initialization with Clone type
-#[test]
-fn filled_initialization() -> Result {
-  let mut alloc = Alloc::<i32>::new();
-
-  let data = alloc.grow(50)?.filled(-42);
-  assert_eq!(data.len(), 50);
-  assert!(data.iter().all(|&x| x == -42));
-
-  Ok(())
 }

@@ -33,6 +33,7 @@ pub fn fill<T: Clone>(uninit: &mut [MaybeUninit<T>], val: T) -> &mut [T] {
   unsafe { assume(uninit) }
 }
 
+#[allow(dead_code)]
 pub fn fill_with<T>(
   uninit: &mut [MaybeUninit<T>],
   mut fill: impl FnMut() -> T,

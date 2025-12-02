@@ -11,7 +11,6 @@ mod pre;
 mod raw;
 mod uninit;
 
-pub(crate) use place::RawPlace;
 pub use {
   alloc::Alloc,
   pre::PreAlloc,
@@ -37,6 +36,7 @@ pub use file::FileMapped;
 /// Alias for `Result<T, Error>` to return from `RawMem` methods
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[allow(unused_macros)]
 macro_rules! memory {
   ($($name:ident<$param:ident>($inner:ty) { $($body:tt)* } )*) => {$(
     pub struct $name<$param>($inner);
@@ -47,7 +47,6 @@ macro_rules! memory {
 
     const _: () = {
       use std::{
-        mem::MaybeUninit,
         fmt::{self, Formatter},
       };
 

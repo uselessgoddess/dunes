@@ -41,12 +41,12 @@ impl<T: Pod> RawMem for Alloc<T> {
   type Item = T;
 
   fn as_slice(&self) -> &[Self::Item] {
-    // SAFETY: RawPlace guarantees valid slice for initialized elements
+    // SAFETY: RawPlace guarantees valid slice for init elements
     unsafe { self.place.as_slice() }
   }
 
   fn as_mut_slice(&mut self) -> &mut [Self::Item] {
-    // SAFETY: RawPlace guarantees valid slice for initialized elements
+    // SAFETY: RawPlace guarantees valid slice for init elements
     unsafe { self.place.as_mut_slice() }
   }
 
@@ -70,7 +70,7 @@ impl<T: Pod> RawMem for Alloc<T> {
       let old_layout =
         Layout::array::<T>(old_cap).map_err(|_| Error::CapacityOverflow)?;
 
-      // SAFETY: reallocating with matching old_layout and growing to larger size
+      // SAFETY: realloc with matching old_layout and grow to larger size
       let ptr = unsafe {
         let old_ptr = self.place.as_mut_slice().as_mut_ptr() as *mut u8;
         alloc::realloc(old_ptr, old_layout, layout.size())
@@ -100,7 +100,7 @@ impl<T: Pod> RawMem for Alloc<T> {
         let layout =
           Layout::array::<T>(self.cap).map_err(|_| Error::CapacityOverflow)?;
 
-        // SAFETY: deallocating with matching layout before resetting to dangling
+        // SAFETY: dealloc with matching layout before reset to dangling
         unsafe {
           let ptr = self.place.as_mut_slice().as_mut_ptr() as *mut u8;
           alloc::dealloc(ptr, layout);
@@ -116,7 +116,7 @@ impl<T: Pod> RawMem for Alloc<T> {
     let new_layout =
       Layout::array::<T>(new_cap).map_err(|_| Error::CapacityOverflow)?;
 
-    // SAFETY: reallocating with matching old_layout and shrinking to smaller size
+    // SAFETY: realloc with matching old_layout and shrink to smaller size
     let ptr = unsafe {
       let old_ptr = self.place.as_mut_slice().as_mut_ptr() as *mut u8;
       alloc::realloc(old_ptr, old_layout, new_layout.size())
@@ -135,13 +135,13 @@ impl<T: Pod> RawMem for Alloc<T> {
 
 impl<T> Drop for Alloc<T> {
   fn drop(&mut self) {
-    if self.cap > 0 {
-      if let Ok(layout) = Layout::array::<T>(self.cap) {
-        // SAFETY: deallocating with matching layout during final cleanup
-        unsafe {
-          let ptr = self.place.as_mut_slice().as_mut_ptr() as *mut u8;
-          alloc::dealloc(ptr, layout);
-        }
+    if self.cap > 0
+      && let Ok(layout) = Layout::array::<T>(self.cap)
+    {
+      // SAFETY: dealloc with matching layout during final cleanup
+      unsafe {
+        let ptr = self.place.as_mut_slice().as_mut_ptr() as *mut u8;
+        alloc::dealloc(ptr, layout);
       }
     }
   }

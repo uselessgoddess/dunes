@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+mod general;
 mod miri;
 mod pre;
 
@@ -17,8 +18,8 @@ macro_rules! define_impls {
   };
 
   (@loop [ $($result:tt)* ] // result accumulation
-          [ $($ctor:expr $(=> $cfg:meta)? )* ] // each ctor with our cfg `not(miri)`
-          [ $test:path as $name:ident | $($tail:tt)* ] // match test with name + tail
+          [ $($ctor:expr $(=> $cfg:meta)? )* ] // each ctor
+          [ $test:path as $name:ident | $($tail:tt)* ] // match test
   ) => {
     define_impls! { @loop
       [
@@ -56,8 +57,12 @@ impl<T, E: Debug> Report for Result<T, E> {
 define_impls! {
     impl RawMem: {
         mem::Alloc::new(),
-        mem::TempFile::new().unwrap() => in all(feature = "tempfile", not(miri)),
+        mem::TempFile::new().unwrap()
+          => in all(feature = "tempfile", not(miri)),
     } for [
+        general::basic_invariants as basic_invariants,
+        general::edge_cases as edge_cases,
+        general::mutability as mutability,
         miri::miri as miri,
     ]
 }

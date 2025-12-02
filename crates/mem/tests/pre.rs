@@ -16,3 +16,14 @@ fn ignore_grow_fillup() -> Result {
 
   Ok(())
 }
+
+#[test]
+fn prealloc_overgrow() {
+  let mut buf = [0u64; 10];
+  let mut mem = PreAlloc::new(&mut buf[..]);
+
+  mem.grow(10).unwrap().zeroed();
+  assert_eq!(mem.as_slice().len(), 10);
+
+  assert!(mem.grow(1).is_err());
+}
