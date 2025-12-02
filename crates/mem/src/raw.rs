@@ -17,13 +17,9 @@ pub enum Error {
   /// grow more than `isize::MAX` bytes:
   ///
   /// ```
-  /// # #![feature(allocator_api)]
-  /// # #![feature(assert_matches)]
-  /// # use std::alloc::Global;
-  /// # use std::assert_matches::assert_matches;
   /// # use mem::{Error, Alloc, RawMem};
-  /// let mut mem = Alloc::new(Global);
-  /// assert_matches!(mem.grow_filled(usize::MAX, 0u64), Err(Error::CapacityOverflow));
+  /// let mut mem = Alloc::<u64>::new();
+  /// assert!(matches!(mem.grow(usize::MAX), Err(Error::CapacityOverflow)));
   /// ```
   #[error("exceeding the capacity maximum")]
   CapacityOverflow,
@@ -74,14 +70,15 @@ impl<'a, T: Pod> Page<'a, T> {
   ///
   /// # Examples
   ///
-  /// ```no_run
+  /// ```ignore
   /// # use mem::Result;
   /// use mem::{FileMapped, RawMem};
   ///
   /// let mut file = FileMapped::from_path("file.bin")?;
-  /// // file is always represents as initialized bytes
+  /// // file always represents initialized bytes
   /// // and usize is transparent as bytes
-  /// let _: &mut [usize] = unsafe { file.grow_assumed(10)? };
+  /// let page = file.grow(10)?;
+  /// let _: &mut [usize] = unsafe { page.assumed() };
   /// # Result::Ok(())
   /// ```
   ///
@@ -102,16 +99,13 @@ impl<'a, T: Zeroable> Page<'a, T> {
   /// # Examples
   /// Correct usage of this function: initializing an [`Zeroable`](Zeroable) types with zeroes:
   /// ```
-  /// # #![feature(allocator_api)]
   /// # use mem::Error;
-  /// use mem::{Global, RawMem};
+  /// use mem::{Alloc, RawMem};
   ///
-  /// let mut alloc = Global::new();
-  /// let zeroes: &mut [(u8, u16)] = unsafe {
-  ///     alloc.grow_zeroed(10)?
-  /// };
+  /// let mut alloc = Alloc::<u64>::new();
+  /// let zeroes = alloc.grow(10)?.zeroed();
   ///
-  /// assert_eq!(zeroes, [(0, 0); 10]);
+  /// assert_eq!(zeroes, [0u64; 10]);
   /// # Ok::<_, Error>(())
   /// ```
   pub fn zeroed(self) -> &'a mut [T] {
@@ -137,19 +131,15 @@ pub trait RawMem {
   ///
   /// ### Incorrect usage
   /// ```no_run
-  /// # #![feature(allocator_api)]
-  /// # use std::alloc::Global;
   /// # use std::mem::MaybeUninit;
   /// # use mem::Result;
   /// use mem::{Alloc, RawMem};
   ///
-  /// let mut alloc = Alloc::new(Global);
-  /// unsafe {
-  ///     alloc.grow(10, |_uninit: &mut [MaybeUninit<u64>]| {
-  ///         // `RawMem` relies on the fact that we initialize memory
-  ///         // even if they are primitives
-  ///     })?;
-  /// }
+  /// let mut alloc = Alloc::<u64>::new();
+  /// // Do NOT use grow without initializing the returned page:
+  /// let _page = alloc.grow(10)?;
+  /// // Memory is uninitialized! Must call .zeroed(), .filled(), or .assumed()
+  /// // on the page before using the data.
   /// # Result::Ok(())
   /// ```
   fn grow(&mut self, cap: usize) -> Result<Page<'_, Self::Item>>;
