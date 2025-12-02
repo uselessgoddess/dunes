@@ -46,6 +46,15 @@ impl<T> RawPlace<T> {
     self.ptr = NonNull::slice_from_raw_parts(self.ptr.cast(), cap);
     self.len = self.len.min(cap);
   }
+
+  /// Update the pointer after reallocation, preserving the initialized length
+  pub fn update_ptr(&mut self, slice: &mut [MaybeUninit<T>]) {
+    let new_cap = slice.len();
+    // SAFETY: `NonNull` is transparent for this conversion
+    self.ptr = unsafe { mem::transmute::<_, NonNull<[T]>>(slice) };
+    // Clamp len to the new capacity
+    self.len = self.len.min(new_cap);
+  }
 }
 
 impl<T> fmt::Debug for RawPlace<T> {
