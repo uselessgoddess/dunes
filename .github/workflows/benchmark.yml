@@ -47,5 +47,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           # Don't save or push on PRs, just show results in summary
           save-data-file: false
+          skip-fetch-gh-pages: true
           comment-on-alert: true
           summary-always: true
