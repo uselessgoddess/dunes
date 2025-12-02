@@ -1,7 +1,7 @@
 use {
   criterion::{
-    criterion_group, criterion_main, Bencher, BenchmarkId, Criterion,
-    Throughput,
+    Bencher, BenchmarkId, Criterion, Throughput, criterion_group,
+    criterion_main,
   },
   dunes_trees::{SizeBalancedTree, Store},
   std::{
@@ -86,11 +86,9 @@ fn benchmark_trees(c: &mut Criterion) {
     let mut group = c.benchmark_group(format!("sbt_insert_{}", n));
     group.throughput(Throughput::Elements(n as u64));
 
-    group.bench_with_input(
-      BenchmarkId::new("usize", n),
-      &n,
-      |b, &n| bench_insert(b, n, |x| x),
-    );
+    group.bench_with_input(BenchmarkId::new("usize", n), &n, |b, &n| {
+      bench_insert(b, n, |x| x)
+    });
 
     group.bench_with_input(
       BenchmarkId::new("nonzero", n),
@@ -105,11 +103,9 @@ fn benchmark_trees(c: &mut Criterion) {
     let mut group = c.benchmark_group(format!("sbt_insert_search_{}", n));
     group.throughput(Throughput::Elements(n as u64 * 2));
 
-    group.bench_with_input(
-      BenchmarkId::new("usize", n),
-      &n,
-      |b, &n| bench_insert_and_search(b, n, |x| x),
-    );
+    group.bench_with_input(BenchmarkId::new("usize", n), &n, |b, &n| {
+      bench_insert_and_search(b, n, |x| x)
+    });
 
     group.finish();
   }
@@ -118,11 +114,9 @@ fn benchmark_trees(c: &mut Criterion) {
     let mut group = c.benchmark_group(format!("sbt_full_cycle_{}", n));
     group.throughput(Throughput::Elements(n as u64 * 2));
 
-    group.bench_with_input(
-      BenchmarkId::new("usize", n),
-      &n,
-      |b, &n| bench_insert_remove(b, n, |x| x),
-    );
+    group.bench_with_input(BenchmarkId::new("usize", n), &n, |b, &n| {
+      bench_insert_remove(b, n, |x| x)
+    });
 
     group.finish();
   }

@@ -127,9 +127,8 @@ pub trait SizeBalancedTree<T: Idx> {
 
   #[inline]
   fn fix_size(&mut self, idx: T) {
-    let size = self.left_size(idx).unwrap_or(0)
-      + self.right_size(idx).unwrap_or(0)
-      + 1;
+    let size =
+      self.left_size(idx).unwrap_or(0) + self.right_size(idx).unwrap_or(0) + 1;
     self.set_size(idx, size)
   }
 
@@ -169,10 +168,10 @@ pub trait SizeBalancedTree<T: Idx> {
     }
   }
 
-  /// Remove index from tree, returns new root (None if tree becomes empty)
+  /// Remove index from tree, returns new root (None if tree empty)
   ///
   /// TODO: This implementation has known bugs in certain cases.
-  /// The removal logic needs to be reviewed against the reference implementation.
+  /// The removal logic needs to be reviewed against reference impl.
   fn remove(&mut self, root: Option<T>, idx: T) -> Option<T> {
     let mut root_val = root?;
     if unsafe { self.remove_impl(&mut root_val, idx)? } {
@@ -186,8 +185,8 @@ pub trait SizeBalancedTree<T: Idx> {
   ///
   /// # Safety
   ///
-  /// The `root` pointer must be valid and point to a value returned by `left_mut` or
-  /// `right_mut`. The caller must ensure no other references to tree nodes exist.
+  /// The `root` pointer must be valid and point to a value from
+  /// `left_mut` or `right_mut`. No other tree node refs allowed.
   unsafe fn insert_impl(&mut self, mut root: *mut T, idx: T) -> Option<()> {
     loop {
       if self.is_left_of(idx, *root) {
@@ -274,22 +273,18 @@ pub trait SizeBalancedTree<T: Idx> {
   ///
   /// # Safety
   ///
-  /// The `root` pointer must be valid and point to a value returned by `left_mut` or
-  /// `right_mut`. The caller must ensure no other references to tree nodes exist.
+  /// The `root` pointer must be valid and point to a value from
+  /// `left_mut` or `right_mut`. No other tree node refs allowed.
   unsafe fn remove_impl(&mut self, mut root: *mut T, idx: T) -> Option<bool> {
     loop {
       let left = self.left_mut(*root).map(|r| r as *mut T);
       let right = self.right_mut(*root).map(|r| r as *mut T);
 
       if self.is_left_of(idx, *root) {
-        let rl_size = self
-          .right(*root)
-          .and_then(|r| self.left_size(r))
-          .unwrap_or(0);
-        let rr_size = self
-          .right(*root)
-          .and_then(|r| self.right_size(r))
-          .unwrap_or(0);
+        let rl_size =
+          self.right(*root).and_then(|r| self.left_size(r)).unwrap_or(0);
+        let rr_size =
+          self.right(*root).and_then(|r| self.right_size(r)).unwrap_or(0);
         let left_size = self.left_size(*root).unwrap_or(0);
 
         if rr_size >= left_size {
@@ -303,14 +298,10 @@ pub trait SizeBalancedTree<T: Idx> {
           root = left?;
         }
       } else if self.is_right_of(idx, *root) {
-        let ll_size = self
-          .left(*root)
-          .and_then(|l| self.left_size(l))
-          .unwrap_or(0);
-        let lr_size = self
-          .left(*root)
-          .and_then(|l| self.right_size(l))
-          .unwrap_or(0);
+        let ll_size =
+          self.left(*root).and_then(|l| self.left_size(l)).unwrap_or(0);
+        let lr_size =
+          self.left(*root).and_then(|l| self.right_size(l)).unwrap_or(0);
         let right_size = self.right_size(*root).unwrap_or(0);
 
         if ll_size >= right_size {

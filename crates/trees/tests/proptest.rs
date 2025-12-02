@@ -1,8 +1,14 @@
-use {dunes_trees::{SizeBalancedTree, Store}, proptest::prelude::*, std::collections::HashSet};
+use {
+  dunes_trees::{SizeBalancedTree, Store},
+  proptest::prelude::*,
+  std::collections::HashSet,
+};
 
 proptest! {
   #[test]
-  fn prop_insert_and_search(values in prop::collection::hash_set(1usize..100, 1..20)) {
+  fn prop_insert_and_search(
+    values in prop::collection::hash_set(1usize..100, 1..20)
+  ) {
     let vals: Vec<usize> = values.into_iter().collect();
     let mut store: Store<usize> = Store::new(100);
 
@@ -20,7 +26,9 @@ proptest! {
   }
 
   #[test]
-  fn prop_insert_maintains_size(values in prop::collection::hash_set(1usize..50, 1..15)) {
+  fn prop_insert_maintains_size(
+    values in prop::collection::hash_set(1usize..50, 1..15)
+  ) {
     let vals: Vec<usize> = values.into_iter().collect();
     let count = vals.len();
     let mut store: Store<usize> = Store::new(100);
@@ -32,7 +40,8 @@ proptest! {
 
     if let Some(r) = root {
       let root_size = store.size(r).unwrap();
-      prop_assert_eq!(root_size, count, "Root size should equal number of inserted values");
+      let msg = "Root size equals insert count";
+      prop_assert_eq!(root_size, count, "{}", msg);
     }
   }
 
