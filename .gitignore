@@ -1,2 +1,10 @@
-/target
-*.proptest-regressions
+# Log files from CI investigations
+*.log
+
+# Temporary files
+pr-description.md
+pr-update.md
+ci-logs/
+
+# Rust build artifacts
+/target/
