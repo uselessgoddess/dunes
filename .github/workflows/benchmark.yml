@@ -24,12 +24,12 @@ jobs:
 
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           tool: 'cargo'
           output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          # Only auto-push on main branch, not PRs
-          auto-push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          auto-push: true
           # Show alert with commit comment on detecting possible performance regression
           alert-threshold: '150%'
           comment-on-alert: true
@@ -37,3 +37,14 @@ jobs:
           # Enable GitHub Pages deployment
           gh-pages-branch: gh-pages
           benchmark-data-dir-path: dev/bench
+
+      - name: Store benchmark result (PR only)
+        uses: benchmark-action/github-action-benchmark@v1
+        if: github.event_name == 'pull_request'
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          # Don't save or push on PRs, just show results in summary
+          save-data-file: false
+          comment-on-alert: true
+          summary-always: true
