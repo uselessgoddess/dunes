@@ -59,7 +59,7 @@ pub trait AdaptiveRadix<T: Idx>: Tree<T> {
       }
       NodeType::Node48 | NodeType::Node256 => {
         // For large nodes, use hash-based selection
-        if byte % 2 == 0 { self.left(idx) } else { self.right(idx) }
+        if byte.is_multiple_of(2) { self.left(idx) } else { self.right(idx) }
       }
       NodeType::Empty => None,
     }
