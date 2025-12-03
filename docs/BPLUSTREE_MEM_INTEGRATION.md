@@ -12,7 +12,7 @@ This document analyzes the compatibility and integration strategy for implementi
 
 ## Why B+ Tree for Database Persistence
 
-From TREE_COMPARISON.md, B+ Tree is the #3 priority tree and **#1 for persistent storage**:
+From docs/TREE_COMPARISON.md, B+ Tree is the #3 priority tree and **#1 for persistent storage**:
 
 | Criterion | Rating | Justification |
 |-----------|--------|---------------|
@@ -512,7 +512,7 @@ Total: ~1040 bytes per node
 
 ### Speed/Difficulty Balance
 
-From TREE_COMPARISON.md:
+From docs/TREE_COMPARISON.md:
 
 | Tree | Implementation | Performance | Balance Score |
 |------|---------------|-------------|---------------|
@@ -685,7 +685,7 @@ The `mem` crate's abstraction is perfectly suited for B+ Tree implementation, re
 
 ## References
 
-- **TREE_COMPARISON.md**: Comprehensive tree analysis
+- **docs/TREE_COMPARISON.md**: Comprehensive tree analysis
 - **crates/mem/**: Memory management abstraction crate
 - **crates/trees/**: Current tree implementations (SBT, Treap)
 - **Issue #7**: Original tree implementation issue
