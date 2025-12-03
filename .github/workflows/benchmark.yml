@@ -36,12 +36,17 @@ jobs:
       - name: Run benchmarks
         run: cargo bench --package trees --bench trees_bench | tee output.txt
 
+      - name: Convert benchmarks to custom format
+        run: |
+          python3 .github/scripts/format_benchmarks.py output.txt benchmark-results.json
+          cat benchmark-results.json
+
       - name: Store benchmark result (main branch only)
         uses: benchmark-action/github-action-benchmark@v1
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
-          tool: 'cargo'
-          output-file-path: output.txt
+          tool: 'customBiggerIsBetter'
+          output-file-path: benchmark-results.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
           # Show alert with commit comment on detecting possible performance regression
