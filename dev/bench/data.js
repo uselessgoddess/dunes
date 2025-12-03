@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1764793217864,
+  "lastUpdate": 1764794249517,
   "repoUrl": "https://github.com/uselessgoddess/dunes",
   "entries": {
     "Benchmark": [
@@ -546,6 +546,142 @@ window.BENCHMARK_DATA = {
             "range": "± 0.15",
             "unit": "M links/sec",
             "extra": "20000 operations in 746172.71 ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "68294279+uselessgoddess@users.noreply.github.com",
+            "name": "uselessgoddess",
+            "username": "uselessgoddess"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1c8287987fe3f62e068a8f14ccd8ceebe724c295",
+          "message": "Merge pull request #23 from konard/issue-22-2c1825bb9843\n\nAdd a complete implementation of ART (Adaptive Radix Tree)",
+          "timestamp": "2025-12-03T23:33:42+03:00",
+          "tree_id": "eb92beb5ddfb9ce4dbe54d689197550547371eb0",
+          "url": "https://github.com/uselessgoddess/dunes/commit/1c8287987fe3f62e068a8f14ccd8ceebe724c295"
+        },
+        "date": 1764794249322,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Insert Only (100 elements)",
+            "value": 59.94,
+            "range": "± 0.27",
+            "unit": "M links/sec",
+            "extra": "100 operations in 1668.40 ns/iter"
+          },
+          {
+            "name": "Insert Only (1000 elements)",
+            "value": 40.25,
+            "range": "± 0.11",
+            "unit": "M links/sec",
+            "extra": "1000 operations in 24845.00 ns/iter"
+          },
+          {
+            "name": "Insert Only (10000 elements)",
+            "value": 31.83,
+            "range": "± 0.05",
+            "unit": "M links/sec",
+            "extra": "10000 operations in 314180.00 ns/iter"
+          },
+          {
+            "name": "Insert + Search (100 elements)",
+            "value": 88.35,
+            "range": "± 0.13",
+            "unit": "M links/sec",
+            "extra": "200 operations in 2263.70 ns/iter"
+          },
+          {
+            "name": "Insert + Search (1000 elements)",
+            "value": 55.39,
+            "range": "± 0.06",
+            "unit": "M links/sec",
+            "extra": "2000 operations in 36106.00 ns/iter"
+          },
+          {
+            "name": "Insert + Search (10000 elements)",
+            "value": 26.45,
+            "range": "± 0.02",
+            "unit": "M links/sec",
+            "extra": "20000 operations in 756160.00 ns/iter"
+          },
+          {
+            "name": "Insert + Remove (100 elements)",
+            "value": 111.04,
+            "range": "± 0.4",
+            "unit": "M links/sec",
+            "extra": "200 operations in 1801.10 ns/iter"
+          },
+          {
+            "name": "Insert + Remove (1000 elements)",
+            "value": 79.65,
+            "range": "± 0.16",
+            "unit": "M links/sec",
+            "extra": "2000 operations in 25109.00 ns/iter"
+          },
+          {
+            "name": "Insert Only (100 elements)",
+            "value": 68.34,
+            "range": "± 0.18",
+            "unit": "M links/sec",
+            "extra": "100 operations in 1463.20 ns/iter"
+          },
+          {
+            "name": "Insert Only (1000 elements)",
+            "value": 63.72,
+            "range": "± 0.23",
+            "unit": "M links/sec",
+            "extra": "1000 operations in 15693.00 ns/iter"
+          },
+          {
+            "name": "Insert Only (10000 elements)",
+            "value": 62.28,
+            "range": "± 0.03",
+            "unit": "M links/sec",
+            "extra": "10000 operations in 160560.00 ns/iter"
+          },
+          {
+            "name": "Insert + Search (100 elements)",
+            "value": 127.91,
+            "range": "± 0.09",
+            "unit": "M links/sec",
+            "extra": "200 operations in 1563.60 ns/iter"
+          },
+          {
+            "name": "Insert + Search (1000 elements)",
+            "value": 120.85,
+            "range": "± 0.41",
+            "unit": "M links/sec",
+            "extra": "2000 operations in 16550.00 ns/iter"
+          },
+          {
+            "name": "Insert + Search (10000 elements)",
+            "value": 120.24,
+            "range": "± 0.04",
+            "unit": "M links/sec",
+            "extra": "20000 operations in 166340.00 ns/iter"
+          },
+          {
+            "name": "Insert + Remove (100 elements)",
+            "value": 119.44,
+            "range": "± 0.09",
+            "unit": "M links/sec",
+            "extra": "200 operations in 1674.50 ns/iter"
+          },
+          {
+            "name": "Insert + Remove (1000 elements)",
+            "value": 113.18,
+            "range": "± 0.08",
+            "unit": "M links/sec",
+            "extra": "2000 operations in 17671.00 ns/iter"
           }
         ]
       }
