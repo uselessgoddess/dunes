@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1764787015988,
+  "lastUpdate": 1764790875831,
   "repoUrl": "https://github.com/uselessgoddess/dunes",
   "entries": {
     "Benchmark": [
@@ -306,6 +306,86 @@ window.BENCHMARK_DATA = {
             "value": 746571.32,
             "range": "± 4614.7",
             "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "68294279+uselessgoddess@users.noreply.github.com",
+            "name": "uselessgoddess",
+            "username": "uselessgoddess"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "67b680a6ff437a4c9fdd10129db4314ac522724b",
+          "message": "Merge pull request #21 from konard/issue-20-7bfd63213319\n\nImprove benchmarks report quality on gh pages",
+          "timestamp": "2025-12-03T22:40:34+03:00",
+          "tree_id": "cca48970b1e6513b5a077ed3db9adc9401cd83ce",
+          "url": "https://github.com/uselessgoddess/dunes/commit/67b680a6ff437a4c9fdd10129db4314ac522724b"
+        },
+        "date": 1764790875600,
+        "tool": "customBiggerIsBetter",
+        "benches": [
+          {
+            "name": "Insert + Remove (100 elements)",
+            "value": 115658414,
+            "range": "1817027",
+            "unit": "links/sec",
+            "extra": "200 operations in 1729.23 ns/iter"
+          },
+          {
+            "name": "Insert + Remove (1000 elements)",
+            "value": 88644780,
+            "range": "1815070",
+            "unit": "links/sec",
+            "extra": "2000 operations in 22561.96 ns/iter"
+          },
+          {
+            "name": "Insert Only (100 elements)",
+            "value": 60852050,
+            "range": "3117152",
+            "unit": "links/sec",
+            "extra": "100 operations in 1643.33 ns/iter"
+          },
+          {
+            "name": "Insert Only (1000 elements)",
+            "value": 45646655,
+            "range": "787153",
+            "unit": "links/sec",
+            "extra": "1000 operations in 21907.41 ns/iter"
+          },
+          {
+            "name": "Insert Only (10000 elements)",
+            "value": 33624239,
+            "range": "1179729",
+            "unit": "links/sec",
+            "extra": "10000 operations in 297404.50 ns/iter"
+          },
+          {
+            "name": "Insert + Search (100 elements)",
+            "value": 88123584,
+            "range": "1414898",
+            "unit": "links/sec",
+            "extra": "200 operations in 2269.54 ns/iter"
+          },
+          {
+            "name": "Insert + Search (1000 elements)",
+            "value": 60580598,
+            "range": "603703",
+            "unit": "links/sec",
+            "extra": "2000 operations in 33013.87 ns/iter"
+          },
+          {
+            "name": "Insert + Search (10000 elements)",
+            "value": 26809614,
+            "range": "686249",
+            "unit": "links/sec",
+            "extra": "20000 operations in 746001.03 ns/iter"
           }
         ]
       }
