@@ -27,6 +27,16 @@ impl<T: Idx> BenchStore<T> for Store<T> {
   }
 }
 
+impl<T: Idx> BenchStore<T> for common::ArtStore<T> {
+  fn new(capacity: usize) -> Self {
+    common::ArtStore::new(capacity)
+  }
+
+  fn reset(&mut self) {
+    common::ArtStore::reset(self)
+  }
+}
+
 // Helper function for insert benchmarks
 fn bench_insert_impl<S, T>(b: &mut Bencher, n: usize)
 where
@@ -124,4 +134,47 @@ fn sbt_full_cycle_100(b: &mut Bencher) {
 #[bench]
 fn sbt_full_cycle_1000(b: &mut Bencher) {
   bench_insert_remove_impl::<Store<usize>, usize>(b, 1_000);
+}
+
+// ART Insert Benchmarks
+#[bench]
+fn art_insert_100(b: &mut Bencher) {
+  bench_insert_impl::<common::ArtStore<usize>, usize>(b, 100);
+}
+
+#[bench]
+fn art_insert_1000(b: &mut Bencher) {
+  bench_insert_impl::<common::ArtStore<usize>, usize>(b, 1_000);
+}
+
+#[bench]
+fn art_insert_10000(b: &mut Bencher) {
+  bench_insert_impl::<common::ArtStore<usize>, usize>(b, 10_000);
+}
+
+// ART Insert + Search Benchmarks
+#[bench]
+fn art_insert_search_100(b: &mut Bencher) {
+  bench_insert_and_search_impl::<common::ArtStore<usize>, usize>(b, 100);
+}
+
+#[bench]
+fn art_insert_search_1000(b: &mut Bencher) {
+  bench_insert_and_search_impl::<common::ArtStore<usize>, usize>(b, 1_000);
+}
+
+#[bench]
+fn art_insert_search_10000(b: &mut Bencher) {
+  bench_insert_and_search_impl::<common::ArtStore<usize>, usize>(b, 10_000);
+}
+
+// ART Full Cycle Benchmarks
+#[bench]
+fn art_full_cycle_100(b: &mut Bencher) {
+  bench_insert_remove_impl::<common::ArtStore<usize>, usize>(b, 100);
+}
+
+#[bench]
+fn art_full_cycle_1000(b: &mut Bencher) {
+  bench_insert_remove_impl::<common::ArtStore<usize>, usize>(b, 1_000);
 }
