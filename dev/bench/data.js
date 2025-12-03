@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1764770087374,
+  "lastUpdate": 1764771185718,
   "repoUrl": "https://github.com/uselessgoddess/dunes",
   "entries": {
     "Benchmark": [
@@ -161,6 +161,78 @@ window.BENCHMARK_DATA = {
             "name": "sbt_insert_search_10000",
             "value": 751530.15,
             "range": "± 7305.01",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "68294279+uselessgoddess@users.noreply.github.com",
+            "name": "uselessgoddess",
+            "username": "uselessgoddess"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "68d681fcc9216a732e92ec81c961a86608db78d5",
+          "message": "Merge pull request #17 from konard/issue-16-66d643ec621f\n\nFix GitHub Pages 404 by adding root index.html",
+          "timestamp": "2025-12-03T17:12:14+03:00",
+          "tree_id": "67ff2e629b15a048683abc58815a91682dfe45f3",
+          "url": "https://github.com/uselessgoddess/dunes/commit/68d681fcc9216a732e92ec81c961a86608db78d5"
+        },
+        "date": 1764771185075,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "sbt_full_cycle_100",
+            "value": 1860.1,
+            "range": "± 153.98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_full_cycle_1000",
+            "value": 23106.44,
+            "range": "± 1188.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_100",
+            "value": 1684.53,
+            "range": "± 100.1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_1000",
+            "value": 22351.88,
+            "range": "± 2462.78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_10000",
+            "value": 296935.32,
+            "range": "± 17025.23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_search_100",
+            "value": 2275.27,
+            "range": "± 172.3",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_search_1000",
+            "value": 34094.52,
+            "range": "± 1396.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_search_10000",
+            "value": 758460.3,
+            "range": "± 37495.27",
             "unit": "ns/iter"
           }
         ]
