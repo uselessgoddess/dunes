@@ -1,13 +1,8 @@
-#![feature(test)]
-
-extern crate test;
-
 mod common;
 
 use {
   common::Store,
-  std::hint::black_box,
-  test::Bencher,
+  criterion::{Criterion, black_box, criterion_group, criterion_main},
   trees::{Idx, Tree},
 };
 
@@ -38,30 +33,30 @@ impl<T: Idx> BenchStore<T> for common::ArtStore<T> {
 }
 
 // Helper function for insert benchmarks
-fn bench_insert_impl<S, T>(b: &mut Bencher, n: usize)
+fn bench_insert_impl<S, T>(n: usize) -> impl FnMut()
 where
   S: BenchStore<T>,
   T: Idx + From<usize>,
 {
   let mut store = S::new(n);
-  b.iter(|| {
+  move || {
     let mut root = None;
     for i in 1..n {
       root = store.insert(root, T::from(i));
     }
     black_box(root);
     store.reset();
-  });
+  }
 }
 
 // Helper function for insert and search benchmarks
-fn bench_insert_and_search_impl<S, T>(b: &mut Bencher, n: usize)
+fn bench_insert_and_search_impl<S, T>(n: usize) -> impl FnMut()
 where
   S: BenchStore<T>,
   T: Idx + From<usize>,
 {
   let mut store = S::new(n);
-  b.iter(|| {
+  move || {
     let mut root = None;
     for i in 1..n {
       root = store.insert(root, T::from(i));
@@ -70,17 +65,17 @@ where
       black_box(store.contains(root.unwrap(), T::from(i)));
     }
     store.reset();
-  });
+  }
 }
 
 // Helper function for full cycle benchmarks
-fn bench_insert_remove_impl<S, T>(b: &mut Bencher, n: usize)
+fn bench_insert_remove_impl<S, T>(n: usize) -> impl FnMut()
 where
   S: BenchStore<T>,
   T: Idx + From<usize>,
 {
   let mut store = S::new(n);
-  b.iter(|| {
+  move || {
     let mut root = None;
     for i in 1..n {
       root = store.insert(root, T::from(i));
@@ -90,91 +85,80 @@ where
     }
     black_box(root);
     store.reset();
+  }
+}
+
+fn sbt_benchmarks(c: &mut Criterion) {
+  c.bench_function("sbt_insert_100", |b| {
+    b.iter(bench_insert_impl::<Store<usize>, usize>(100))
+  });
+
+  c.bench_function("sbt_insert_1000", |b| {
+    b.iter(bench_insert_impl::<Store<usize>, usize>(1_000))
+  });
+
+  c.bench_function("sbt_insert_10000", |b| {
+    b.iter(bench_insert_impl::<Store<usize>, usize>(10_000))
+  });
+
+  c.bench_function("sbt_insert_search_100", |b| {
+    b.iter(bench_insert_and_search_impl::<Store<usize>, usize>(100))
+  });
+
+  c.bench_function("sbt_insert_search_1000", |b| {
+    b.iter(bench_insert_and_search_impl::<Store<usize>, usize>(1_000))
+  });
+
+  c.bench_function("sbt_insert_search_10000", |b| {
+    b.iter(bench_insert_and_search_impl::<Store<usize>, usize>(10_000))
+  });
+
+  c.bench_function("sbt_full_cycle_100", |b| {
+    b.iter(bench_insert_remove_impl::<Store<usize>, usize>(100))
+  });
+
+  c.bench_function("sbt_full_cycle_1000", |b| {
+    b.iter(bench_insert_remove_impl::<Store<usize>, usize>(1_000))
   });
 }
 
-// SBT Insert Benchmarks
-#[bench]
-fn sbt_insert_100(b: &mut Bencher) {
-  bench_insert_impl::<Store<usize>, usize>(b, 100);
+fn art_benchmarks(c: &mut Criterion) {
+  c.bench_function("art_insert_100", |b| {
+    b.iter(bench_insert_impl::<common::ArtStore<usize>, usize>(100))
+  });
+
+  c.bench_function("art_insert_1000", |b| {
+    b.iter(bench_insert_impl::<common::ArtStore<usize>, usize>(1_000))
+  });
+
+  c.bench_function("art_insert_10000", |b| {
+    b.iter(bench_insert_impl::<common::ArtStore<usize>, usize>(10_000))
+  });
+
+  c.bench_function("art_insert_search_100", |b| {
+    b.iter(bench_insert_and_search_impl::<common::ArtStore<usize>, usize>(100))
+  });
+
+  c.bench_function("art_insert_search_1000", |b| {
+    b.iter(bench_insert_and_search_impl::<common::ArtStore<usize>, usize>(
+      1_000,
+    ))
+  });
+
+  c.bench_function("art_insert_search_10000", |b| {
+    b.iter(bench_insert_and_search_impl::<common::ArtStore<usize>, usize>(
+      10_000,
+    ))
+  });
+
+  c.bench_function("art_full_cycle_100", |b| {
+    b.iter(bench_insert_remove_impl::<common::ArtStore<usize>, usize>(100))
+  });
+
+  c.bench_function("art_full_cycle_1000", |b| {
+    b.iter(bench_insert_remove_impl::<common::ArtStore<usize>, usize>(1_000))
+  });
 }
 
-#[bench]
-fn sbt_insert_1000(b: &mut Bencher) {
-  bench_insert_impl::<Store<usize>, usize>(b, 1_000);
-}
-
-#[bench]
-fn sbt_insert_10000(b: &mut Bencher) {
-  bench_insert_impl::<Store<usize>, usize>(b, 10_000);
-}
-
-// SBT Insert + Search Benchmarks
-#[bench]
-fn sbt_insert_search_100(b: &mut Bencher) {
-  bench_insert_and_search_impl::<Store<usize>, usize>(b, 100);
-}
-
-#[bench]
-fn sbt_insert_search_1000(b: &mut Bencher) {
-  bench_insert_and_search_impl::<Store<usize>, usize>(b, 1_000);
-}
-
-#[bench]
-fn sbt_insert_search_10000(b: &mut Bencher) {
-  bench_insert_and_search_impl::<Store<usize>, usize>(b, 10_000);
-}
-
-// SBT Full Cycle Benchmarks
-#[bench]
-fn sbt_full_cycle_100(b: &mut Bencher) {
-  bench_insert_remove_impl::<Store<usize>, usize>(b, 100);
-}
-
-#[bench]
-fn sbt_full_cycle_1000(b: &mut Bencher) {
-  bench_insert_remove_impl::<Store<usize>, usize>(b, 1_000);
-}
-
-// ART Insert Benchmarks
-#[bench]
-fn art_insert_100(b: &mut Bencher) {
-  bench_insert_impl::<common::ArtStore<usize>, usize>(b, 100);
-}
-
-#[bench]
-fn art_insert_1000(b: &mut Bencher) {
-  bench_insert_impl::<common::ArtStore<usize>, usize>(b, 1_000);
-}
-
-#[bench]
-fn art_insert_10000(b: &mut Bencher) {
-  bench_insert_impl::<common::ArtStore<usize>, usize>(b, 10_000);
-}
-
-// ART Insert + Search Benchmarks
-#[bench]
-fn art_insert_search_100(b: &mut Bencher) {
-  bench_insert_and_search_impl::<common::ArtStore<usize>, usize>(b, 100);
-}
-
-#[bench]
-fn art_insert_search_1000(b: &mut Bencher) {
-  bench_insert_and_search_impl::<common::ArtStore<usize>, usize>(b, 1_000);
-}
-
-#[bench]
-fn art_insert_search_10000(b: &mut Bencher) {
-  bench_insert_and_search_impl::<common::ArtStore<usize>, usize>(b, 10_000);
-}
-
-// ART Full Cycle Benchmarks
-#[bench]
-fn art_full_cycle_100(b: &mut Bencher) {
-  bench_insert_remove_impl::<common::ArtStore<usize>, usize>(b, 100);
-}
-
-#[bench]
-fn art_full_cycle_1000(b: &mut Bencher) {
-  bench_insert_remove_impl::<common::ArtStore<usize>, usize>(b, 1_000);
-}
+criterion_group!(benches, sbt_benchmarks, art_benchmarks);
+criterion_main!(benches);

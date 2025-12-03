@@ -3,11 +3,11 @@ use trees::{AdaptiveRadix, Idx, Node, SizeBalanced, Tree};
 /// Vector-backed tree store for testing and benchmarking.
 /// Generic over the tree implementation strategy.
 #[derive(Debug, Clone)]
-pub struct VecStore<T> {
+pub struct Store<T> {
   nodes: Vec<Node<T>>,
 }
 
-impl<T> VecStore<T> {
+impl<T> Store<T> {
   pub fn new(capacity: usize) -> Self {
     Self { nodes: (0..capacity).map(|_| Node::default()).collect() }
   }
@@ -26,7 +26,7 @@ impl<T> VecStore<T> {
 }
 
 // Base Tree trait implementation
-impl<T: Idx> Tree<T> for VecStore<T> {
+impl<T: Idx> Tree<T> for Store<T> {
   #[inline(always)]
   fn get(&self, idx: T) -> Option<Node<T>> {
     self.nodes.get(idx.as_usize()).copied()
@@ -65,23 +65,20 @@ impl<T: Idx> Tree<T> for VecStore<T> {
 }
 
 // SBT strategy
-impl<T: Idx> SizeBalanced<T> for VecStore<T> {}
+impl<T: Idx> SizeBalanced<T> for Store<T> {}
 
 // ART strategy
-impl<T: Idx> AdaptiveRadix<T> for VecStore<T> {}
-
-// Type aliases for convenience
-pub type Store<T> = VecStore<T>;
+impl<T: Idx> AdaptiveRadix<T> for Store<T> {}
 
 /// ART-specific store that uses ART insert/remove by default
 #[derive(Debug, Clone)]
 pub struct ArtStore<T> {
-  inner: VecStore<T>,
+  inner: Store<T>,
 }
 
 impl<T> ArtStore<T> {
   pub fn new(capacity: usize) -> Self {
-    Self { inner: VecStore::new(capacity) }
+    Self { inner: Store::new(capacity) }
   }
 
   pub fn reset(&mut self) {

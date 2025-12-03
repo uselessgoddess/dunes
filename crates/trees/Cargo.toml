@@ -9,7 +9,8 @@ bytemuck = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 proptest = "1.5"
+criterion = "0.5"
 
 [[bench]]
 name = "trees_bench"
-harness = true
+harness = false
