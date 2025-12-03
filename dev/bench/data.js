@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1764689241877,
+  "lastUpdate": 1764770087374,
   "repoUrl": "https://github.com/uselessgoddess/dunes",
   "entries": {
     "Benchmark": [
@@ -89,6 +89,78 @@ window.BENCHMARK_DATA = {
             "name": "sbt_full_cycle_1000/usize/1000",
             "value": 25673,
             "range": "± 248",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "68294279+uselessgoddess@users.noreply.github.com",
+            "name": "uselessgoddess",
+            "username": "uselessgoddess"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0f4f09670fb1d45469d3ea91624fb42571eb37ad",
+          "message": "Merge pull request #11 from konard/issue-10-9a1c12f6ea06\n\nRefactor trees crate: reorganize test utilities and add generic benchmarks",
+          "timestamp": "2025-12-03T16:53:50+03:00",
+          "tree_id": "aa4c174374fbca3c79aa902c0ec11a3a7de072b2",
+          "url": "https://github.com/uselessgoddess/dunes/commit/0f4f09670fb1d45469d3ea91624fb42571eb37ad"
+        },
+        "date": 1764770087130,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "sbt_full_cycle_100",
+            "value": 1898.42,
+            "range": "± 25.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_full_cycle_1000",
+            "value": 25466.19,
+            "range": "± 2169.11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_100",
+            "value": 1662.83,
+            "range": "± 98.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_1000",
+            "value": 24335.06,
+            "range": "± 2483.11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_10000",
+            "value": 297367.53,
+            "range": "± 4455.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_search_100",
+            "value": 2247.28,
+            "range": "± 38.63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_search_1000",
+            "value": 35426.64,
+            "range": "± 1796.42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "sbt_insert_search_10000",
+            "value": 751530.15,
+            "range": "± 7305.01",
             "unit": "ns/iter"
           }
         ]
