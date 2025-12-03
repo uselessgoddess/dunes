@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Convert cargo bench output to custom JSON format with links/second metric.
+Convert cargo bench output to custom JSON format with million links/second metric.
 
-For tree benchmarks, we want to show throughput (links/second) rather than
-time (ns/iter), as it's more meaningful for understanding performance.
+For tree benchmarks, we want to show throughput (M links/sec) rather than
+time (ns/iter), as it's more meaningful and readable for understanding performance.
+Values like "115.08 M links/sec" are much easier to read than "115076784 links/sec".
 """
 
 import json
@@ -56,6 +57,9 @@ def parse_bench_output(output_file):
         time_seconds = time_ns / 1e9
         links_per_second = num_operations / time_seconds
 
+        # Convert to million links per second for better readability
+        million_links_per_second = links_per_second / 1_000_000
+
         # Calculate variance in links/second
         # If time varies by ± variance_ns, then throughput varies inversely
         time_low = (time_ns - variance) / 1e9
@@ -63,8 +67,8 @@ def parse_bench_output(output_file):
         links_per_second_high = num_operations / time_low if time_low > 0 else links_per_second
         links_per_second_low = num_operations / time_high if time_high > 0 else links_per_second
 
-        # Use the average of the differences as the range
-        range_value = (links_per_second_high - links_per_second_low) / 2
+        # Use the average of the differences as the range (in millions)
+        range_value = (links_per_second_high - links_per_second_low) / 2 / 1_000_000
 
         # Create a more descriptive name for the chart
         # Group benchmarks by operation type
@@ -81,9 +85,9 @@ def parse_bench_output(output_file):
 
         results.append({
             'name': chart_name,
-            'unit': 'links/sec',
-            'value': int(links_per_second),
-            'range': str(int(range_value)),
+            'unit': 'M links/sec',
+            'value': round(million_links_per_second, 2),
+            'range': f'± {round(range_value, 2)}',
             'extra': f'{num_operations} operations in {time_ns:.2f} ns/iter'
         })
 
