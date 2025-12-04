@@ -17,3 +17,15 @@ Original repository (upstream): uselessgoddess/dunes
 Proceed.
 
 Run timestamp: 2025-12-04T06:52:31.418Z
+
+---
+
+Issue to solve: https://github.com/uselessgoddess/dunes/issues/36
+Your prepared branch: issue-36-7d1e5a8dd98e
+Your prepared working directory: /tmp/gh-issue-solver-1764842361194
+Your forked repository: konard/uselessgoddess-dunes
+Original repository (upstream): uselessgoddess/dunes
+
+Proceed.
+
+Run timestamp: 2025-12-04T09:59:27.913Z
