@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dunes - Benchmark Results</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 2rem;
+        }
+
+        .header {
+            max-width: 1400px;
+            margin: 0 auto 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #8b949e;
+            font-size: 1.1rem;
+        }
+
+        .controls {
+            max-width: 1400px;
+            margin: 0 auto 2rem;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .control-section {
+            margin-bottom: 1rem;
+        }
+
+        .control-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-section h3 {
+            font-size: 0.9rem;
+            color: #8b949e;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .toggle-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .toggle-btn {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .toggle-btn:hover {
+            background: #30363d;
+            border-color: #8b949e;
+        }
+
+        .toggle-btn.active {
+            background: #238636;
+            border-color: #2ea043;
+            color: white;
+        }
+
+        .toggle-btn.unit-toggle {
+            min-width: 120px;
+        }
+
+        .charts-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .chart-group {
+            margin-bottom: 3rem;
+        }
+
+        .chart-group h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #c9d1d9;
+        }
+
+        .chart-wrapper {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .chart-canvas {
+            max-height: 400px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: #8b949e;
+            font-size: 1.1rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #8b949e;
+            font-size: 1.1rem;
+        }
+
+        .footer {
+            max-width: 1400px;
+            margin: 3rem auto 0;
+            text-align: center;
+            color: #8b949e;
+            font-size: 0.9rem;
+            padding-top: 2rem;
+            border-top: 1px solid #30363d;
+        }
+
+        .footer a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏜️ Dunes Benchmarks</h1>
+        <p>High-performance tree data structures for Rust</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-section">
+            <h3>Tree Implementation</h3>
+            <div class="toggle-group" id="tree-toggles">
+                <button class="toggle-btn active" data-tree="SBT">Size-Balanced Tree (SBT)</button>
+                <button class="toggle-btn active" data-tree="ART">Adaptive Radix Tree (ART)</button>
+            </div>
+        </div>
+        <div class="control-section">
+            <h3>Performance Metric</h3>
+            <div class="toggle-group" id="unit-toggles">
+                <button class="toggle-btn active unit-toggle" data-unit="mlinks">M links/sec</button>
+                <button class="toggle-btn unit-toggle" data-unit="mb">MB/sec</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading" class="loading">
+        Loading benchmark data...
+    </div>
+
+    <div id="charts-container" class="charts-container" style="display: none;">
+    </div>
+
+    <div class="footer">
+        <p>
+            Benchmarks powered by <a href="https://github.com/benchmark-action/github-action-benchmark" target="_blank">GitHub Action Benchmark</a>
+            | <a href="https://github.com/uselessgoddess/dunes" target="_blank">View Repository</a>
+        </p>
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+        // State management
+        const state = {
+            selectedTrees: new Set(['SBT', 'ART']),
+            selectedUnit: 'mlinks',
+            benchmarkData: null,
+            charts: []
+        };
+
+        // Colors for different tree implementations
+        const treeColors = {
+            'SBT': {
+                line: 'rgba(102, 126, 234, 1)',
+                fill: 'rgba(102, 126, 234, 0.1)'
+            },
+            'ART': {
+                line: 'rgba(118, 75, 162, 1)',
+                fill: 'rgba(118, 75, 162, 0.1)'
+            }
+        };
+
+        // Parse tree type from extra field
+        function parseTreeType(extra) {
+            const match = extra.match(/tree=(\w+)/);
+            return match ? match[1] : 'unknown';
+        }
+
+        // Parse operations count from extra field
+        function parseOperations(extra) {
+            const match = extra.match(/ops=(\d+)/);
+            return match ? parseInt(match[1]) : 1;
+        }
+
+        // Convert M links/sec to MB/sec
+        // Assuming each link operation involves 8 bytes (pointer size on 64-bit systems)
+        function linksToMB(mLinksPerSec, operations) {
+            const bytesPerLink = 8;
+            const linksPerSec = mLinksPerSec * 1_000_000;
+            const bytesPerSec = linksPerSec * bytesPerLink;
+            const mbPerSec = bytesPerSec / (1024 * 1024);
+            return mbPerSec;
+        }
+
+        // Convert value based on selected unit
+        function convertValue(value, unit, extra) {
+            if (state.selectedUnit === 'mb' && unit === 'M links/sec') {
+                const operations = parseOperations(extra);
+                return linksToMB(value, operations);
+            }
+            return value;
+        }
+
+        // Get unit label
+        function getUnitLabel() {
+            return state.selectedUnit === 'mlinks' ? 'M links/sec' : 'MB/sec';
+        }
+
+        // Group benchmarks by name (chart)
+        function groupBenchmarks(data) {
+            const groups = {};
+
+            if (!data || !data.entries || !data.entries.Benchmark) {
+                return groups;
+            }
+
+            // Process each commit's benchmarks
+            data.entries.Benchmark.forEach(entry => {
+                const commitInfo = {
+                    hash: entry.commit.id.substring(0, 7),
+                    date: new Date(entry.date),
+                    message: entry.commit.message,
+                    url: entry.commit.url
+                };
+
+                entry.benches.forEach(bench => {
+                    const treeType = parseTreeType(bench.extra);
+
+                    // Skip if tree type not selected
+                    if (!state.selectedTrees.has(treeType)) {
+                        return;
+                    }
+
+                    if (!groups[bench.name]) {
+                        groups[bench.name] = {};
+                    }
+
+                    if (!groups[bench.name][treeType]) {
+                        groups[bench.name][treeType] = [];
+                    }
+
+                    groups[bench.name][treeType].push({
+                        ...bench,
+                        commit: commitInfo
+                    });
+                });
+            });
+
+            return groups;
+        }
+
+        // Create a chart for a benchmark group
+        function createChart(chartName, treeData, container) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'chart-wrapper';
+
+            const canvas = document.createElement('canvas');
+            canvas.className = 'chart-canvas';
+            wrapper.appendChild(canvas);
+            container.appendChild(wrapper);
+
+            // Prepare datasets for each tree type
+            const datasets = [];
+
+            Object.entries(treeData).forEach(([treeType, benchmarks]) => {
+                // Sort by date
+                benchmarks.sort((a, b) => a.commit.date - b.commit.date);
+
+                const data = benchmarks.map(b => ({
+                    x: b.commit.date,
+                    y: convertValue(b.value, b.unit, b.extra)
+                }));
+
+                const color = treeColors[treeType] || treeColors['SBT'];
+
+                datasets.push({
+                    label: treeType,
+                    data: data,
+                    borderColor: color.line,
+                    backgroundColor: color.fill,
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    metadata: benchmarks
+                });
+            });
+
+            const chart = new Chart(canvas, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: chartName,
+                            color: '#c9d1d9',
+                            font: { size: 16 }
+                        },
+                        legend: {
+                            labels: {
+                                color: '#c9d1d9'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: (items) => {
+                                    if (items.length === 0) return '';
+                                    const datasetIndex = items[0].datasetIndex;
+                                    const dataIndex = items[0].dataIndex;
+                                    const metadata = datasets[datasetIndex].metadata[dataIndex];
+                                    return `${metadata.commit.hash}: ${metadata.commit.message}`;
+                                },
+                                label: (item) => {
+                                    const value = item.parsed.y.toFixed(2);
+                                    return `${item.dataset.label}: ${value} ${getUnitLabel()}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                tooltipFormat: 'MMM dd, yyyy HH:mm',
+                                displayFormats: {
+                                    day: 'MMM dd'
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Date',
+                                color: '#8b949e'
+                            },
+                            ticks: {
+                                color: '#8b949e'
+                            },
+                            grid: {
+                                color: '#30363d'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: getUnitLabel(),
+                                color: '#8b949e'
+                            },
+                            ticks: {
+                                color: '#8b949e'
+                            },
+                            grid: {
+                                color: '#30363d'
+                            }
+                        }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const datasetIndex = elements[0].datasetIndex;
+                            const dataIndex = elements[0].index;
+                            const metadata = datasets[datasetIndex].metadata[dataIndex];
+                            window.open(metadata.commit.url, '_blank');
+                        }
+                    }
+                }
+            });
+
+            state.charts.push(chart);
+        }
+
+        // Render all charts
+        function renderCharts() {
+            // Clear existing charts
+            state.charts.forEach(chart => chart.destroy());
+            state.charts = [];
+
+            const container = document.getElementById('charts-container');
+            container.innerHTML = '';
+
+            if (!state.benchmarkData) {
+                container.innerHTML = '<div class="no-data">No benchmark data available</div>';
+                return;
+            }
+
+            const groups = groupBenchmarks(state.benchmarkData);
+
+            if (Object.keys(groups).length === 0) {
+                container.innerHTML = '<div class="no-data">No benchmarks match the selected filters</div>';
+                return;
+            }
+
+            // Group charts by operation type
+            const operationTypes = {
+                'Insert Only': [],
+                'Insert + Search': [],
+                'Insert + Remove': []
+            };
+
+            Object.entries(groups).forEach(([chartName, treeData]) => {
+                for (const opType in operationTypes) {
+                    if (chartName.startsWith(opType)) {
+                        operationTypes[opType].push({ chartName, treeData });
+                        return;
+                    }
+                }
+            });
+
+            // Render charts by operation type
+            Object.entries(operationTypes).forEach(([opType, charts]) => {
+                if (charts.length === 0) return;
+
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'chart-group';
+
+                const heading = document.createElement('h2');
+                heading.textContent = opType;
+                groupDiv.appendChild(heading);
+
+                charts.forEach(({ chartName, treeData }) => {
+                    createChart(chartName, treeData, groupDiv);
+                });
+
+                container.appendChild(groupDiv);
+            });
+
+            container.style.display = 'block';
+        }
+
+        // Setup tree toggles
+        function setupTreeToggles() {
+            const toggles = document.getElementById('tree-toggles');
+            toggles.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('toggle-btn')) return;
+
+                const tree = e.target.dataset.tree;
+
+                if (state.selectedTrees.has(tree)) {
+                    // Don't allow deselecting all trees
+                    if (state.selectedTrees.size > 1) {
+                        state.selectedTrees.delete(tree);
+                        e.target.classList.remove('active');
+                    }
+                } else {
+                    state.selectedTrees.add(tree);
+                    e.target.classList.add('active');
+                }
+
+                renderCharts();
+            });
+        }
+
+        // Setup unit toggles
+        function setupUnitToggles() {
+            const toggles = document.getElementById('unit-toggles');
+            toggles.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('toggle-btn')) return;
+
+                const unit = e.target.dataset.unit;
+
+                if (state.selectedUnit !== unit) {
+                    state.selectedUnit = unit;
+
+                    // Update active state
+                    toggles.querySelectorAll('.toggle-btn').forEach(btn => {
+                        btn.classList.toggle('active', btn.dataset.unit === unit);
+                    });
+
+                    renderCharts();
+                }
+            });
+        }
+
+        // Initialize
+        function init() {
+            // Load benchmark data from data.js
+            if (typeof window.BENCHMARK_DATA !== 'undefined') {
+                state.benchmarkData = window.BENCHMARK_DATA;
+            }
+
+            setupTreeToggles();
+            setupUnitToggles();
+
+            document.getElementById('loading').style.display = 'none';
+            renderCharts();
+        }
+
+        // Wait for data.js to load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
