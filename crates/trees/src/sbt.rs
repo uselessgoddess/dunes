@@ -188,155 +188,151 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
 
   /// Internal remove implementation - returns true if tree becomes empty
   ///
-  /// Uses standard BST deletion without preventive rotations.
-  /// According to SBT reference (Chen Qifeng), deletion is the same as
-  /// normal BST and doesn't require maintain operations.
+  /// Based on C# reference implementation from linksplatform/Collections.Methods
+  /// Decrements sizes while traversing to find the node (not after removal)
   ///
   /// # Safety
   ///
   /// The `root` pointer must be valid and point to a value from
   /// `left_mut` or `right_mut`. No other tree node refs allowed.
   unsafe fn remove_impl(&mut self, root: *mut T, idx: T) -> Option<bool> {
-    let _original_root = *root;
+    // Traverse to find the node, decrementing sizes along the path
+    let mut current = root;
+    let mut parent = root;
 
-    // Special case: removing the root node
-    if *root == idx {
-      let left = self.left(*root);
-      let right = self.right(*root);
+    while *current != idx {
+      self.dec_size(*current);
 
-      match (left, right) {
-        (None, None) => {
-          // Tree will be empty - clear tree structure and size
-          self.set_left(*root, None);
-          self.set_right(*root, None);
-          self.set_size(*root, 0);
-          return Some(true);
-        }
-        (Some(left_child), None) => {
-          *root = left_child;
-          // Clear removed node's tree structure and size
-          self.set_left(idx, None);
-          self.set_right(idx, None);
-          self.set_size(idx, 0);
-          return Some(false);
-        }
-        (None, Some(right_child)) => {
-          *root = right_child;
-          // Clear removed node's tree structure and size
-          self.set_left(idx, None);
-          self.set_right(idx, None);
-          self.set_size(idx, 0);
-          return Some(false);
-        }
-        _ => {
-          // Has two children, will be handled by remove_node
-        }
+      if self.is_left_of(idx, *current) {
+        parent = current;
+        current = self.left_mut(*current).map(|r| r as *mut T)?;
+      } else if self.is_right_of(idx, *current) {
+        parent = current;
+        current = self.right_mut(*current).map(|r| r as *mut T)?;
+      } else {
+        // This should not happen - means duplicate found
+        return None;
       }
     }
 
-    // Find and remove the node using standard BST deletion
-    self.remove_node(root, idx)?;
+    // Now current points to the node to detach
+    let node_to_detach = *current;
+    let left = self.left(node_to_detach);
+    let right = self.right(node_to_detach);
+
+    let replacement = match (left, right) {
+      (Some(left_child), Some(right_child)) => {
+        // Two children: find leftmost node in right subtree
+        let leftmost = self.leftest(right_child);
+
+        // Recursively detach the leftmost node from right subtree
+        let right_ptr = self.right_mut(node_to_detach).map(|r| r as *mut T)?;
+        self.detach_node(right_ptr, leftmost)?;
+
+        // Set up the leftmost node as replacement
+        self.set_left(leftmost, Some(left_child));
+        let new_right = self.right(node_to_detach);
+
+        if let Some(new_right_val) = new_right {
+          self.set_right(leftmost, Some(new_right_val));
+          let left_size = self.size(left_child)?;
+          let right_size = self.size(new_right_val)?;
+          self.set_size(leftmost, left_size + right_size + 1);
+        } else {
+          let left_size = self.size(left_child)?;
+          self.set_size(leftmost, left_size + 1);
+        }
+
+        Some(leftmost)
+      }
+      (Some(left_child), None) => Some(left_child),
+      (None, Some(right_child)) => Some(right_child),
+      (None, None) => None,
+    };
+
+    // Update parent's pointer
+    if *root == node_to_detach {
+      // Detaching root
+      if let Some(repl) = replacement {
+        *root = repl;
+      } else {
+        // Tree becomes empty
+        self.clear(node_to_detach);
+        return Some(true);
+      }
+    } else if self.left(*parent) == Some(node_to_detach) {
+      self.set_left(*parent, replacement);
+    } else if self.right(*parent) == Some(node_to_detach) {
+      self.set_right(*parent, replacement);
+    }
+
+    // Clear the detached node
+    self.clear(node_to_detach);
     Some(false)
   }
 
-  /// Standard BST node removal - returns true if node was found and removed
+  /// Helper to detach a specific node from a subtree
+  /// Similar to remove_impl but doesn't handle the root == node case
   ///
   /// # Safety
   ///
   /// The `root` pointer must be valid
-  unsafe fn remove_node(&mut self, root: *mut T, idx: T) -> Option<bool> {
-    if idx == *root {
-      // Found the node to remove
-      let left = self.left(*root);
-      let right = self.right(*root);
+  unsafe fn detach_node(&mut self, root: *mut T, idx: T) -> Option<()> {
+    let mut current = root;
+    let mut parent = root;
 
-      match (left, right) {
-        (None, None) => {
-          // Leaf node - parent should set their pointer to None
-          // We can't do that here since we don't have access to parent
-          // Just clear this node's structure
-          self.set_left(*root, None);
-          self.set_right(*root, None);
-          self.set_size(*root, 0);
-          Some(true)
-        }
-        (Some(left_child), None) => {
-          // Replace with left child
-          *root = left_child;
-          self.set_left(idx, None);
-          self.set_right(idx, None);
-          self.set_size(idx, 0);
-          Some(true)
-        }
-        (None, Some(right_child)) => {
-          // Replace with right child
-          *root = right_child;
-          self.set_left(idx, None);
-          self.set_right(idx, None);
-          self.set_size(idx, 0);
-          Some(true)
-        }
-        (Some(_), Some(_)) => {
-          // Two children - find successor/predecessor
-          let left_size = self.left_size(*root).unwrap_or(0);
-          let right_size = self.right_size(*root).unwrap_or(0);
+    // Find the node, decrementing sizes
+    while *current != idx {
+      self.dec_size(*current);
 
-          let replacement = if left_size > right_size {
-            let left_ptr = self.left_mut(*root).map(|r| r as *mut T)?;
-            self.rightest(*left_ptr)
-          } else {
-            let right_ptr = self.right_mut(*root).map(|r| r as *mut T)?;
-            self.leftest(*right_ptr)
-          };
-
-          // Remove replacement from its position
-          if left_size > right_size {
-            let left_ptr = self.left_mut(*root).map(|r| r as *mut T)?;
-            self.remove_node(left_ptr, replacement)?;
-          } else {
-            let right_ptr = self.right_mut(*root).map(|r| r as *mut T)?;
-            self.remove_node(right_ptr, replacement)?;
-          }
-
-          // Move replacement to current position
-          let old_left = self.left(*root);
-          let old_right = self.right(*root);
-          self.set_left(replacement, old_left);
-          self.set_right(replacement, old_right);
-          self.fix_size(replacement);
-
-          *root = replacement;
-
-          // Clear removed node
-          self.set_left(idx, None);
-          self.set_right(idx, None);
-          self.set_size(idx, 0);
-
-          Some(true)
-        }
-      }
-    } else if self.is_left_of(idx, *root) {
-      // Search left subtree
-      if let Some(left_ptr) = self.left_mut(*root).map(|r| r as *mut T) {
-        let removed = self.remove_node(left_ptr, idx)?;
-        if removed {
-          self.fix_size(*root);
-        }
-        Some(removed)
+      if self.is_left_of(idx, *current) {
+        parent = current;
+        current = self.left_mut(*current).map(|r| r as *mut T)?;
+      } else if self.is_right_of(idx, *current) {
+        parent = current;
+        current = self.right_mut(*current).map(|r| r as *mut T)?;
       } else {
-        Some(false) // Not found
-      }
-    } else {
-      // Search right subtree
-      if let Some(right_ptr) = self.right_mut(*root).map(|r| r as *mut T) {
-        let removed = self.remove_node(right_ptr, idx)?;
-        if removed {
-          self.fix_size(*root);
-        }
-        Some(removed)
-      } else {
-        Some(false) // Not found
+        return None;
       }
     }
+
+    // Determine replacement
+    let left = self.left(*current);
+    let right = self.right(*current);
+
+    let replacement = match (left, right) {
+      (Some(left_child), Some(right_child)) => {
+        let leftmost = self.leftest(right_child);
+        let right_ptr = self.right_mut(*current).map(|r| r as *mut T)?;
+        self.detach_node(right_ptr, leftmost)?;
+
+        self.set_left(leftmost, Some(left_child));
+        let new_right = self.right(*current);
+
+        if let Some(new_right_val) = new_right {
+          self.set_right(leftmost, Some(new_right_val));
+          let left_size = self.size(left_child)?;
+          let right_size = self.size(new_right_val)?;
+          self.set_size(leftmost, left_size + right_size + 1);
+        } else {
+          let left_size = self.size(left_child)?;
+          self.set_size(leftmost, left_size + 1);
+        }
+
+        Some(leftmost)
+      }
+      (Some(left_child), None) => Some(left_child),
+      (None, Some(right_child)) => Some(right_child),
+      (None, None) => None,
+    };
+
+    // Update parent
+    if self.left(*parent) == Some(*current) {
+      self.set_left(*parent, replacement);
+    } else if self.right(*parent) == Some(*current) {
+      self.set_right(*parent, replacement);
+    }
+
+    Some(())
   }
 }
