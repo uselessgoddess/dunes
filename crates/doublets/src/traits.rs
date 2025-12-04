@@ -68,10 +68,13 @@ pub trait Doublets<L: Index>: Links<L> {
   /// Create a new link and return its index
   fn create_link(&mut self, source: L, target: L) -> Result<L, L> {
     let mut result = L::ZERO;
-    self.create([source, target], &mut |_before: Link<L>, after: Link<L>| {
-      result = after.index;
-      Flow::Continue
-    })?;
+    self.create(
+      [source, target],
+      &mut |_before: Link<L>, after: Link<L>| {
+        result = after.index;
+        Flow::Continue
+      },
+    )?;
     Ok(result)
   }
 
