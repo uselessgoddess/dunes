@@ -34,7 +34,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
 
       - name: Run benchmarks
-        run: cargo bench --package trees --bench trees_bench | tee output.txt
+        run: |
+          cargo bench --package trees --bench trees_bench | tee trees_output.txt
+          cargo bench --package doublets --bench doublets_bench | tee doublets_output.txt
+          cat trees_output.txt doublets_output.txt > output.txt
 
       - name: Convert benchmarks to custom format
         run: |
