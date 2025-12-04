@@ -97,6 +97,41 @@
             min-width: 120px;
         }
 
+        .tab-controls {
+            max-width: 1400px;
+            margin: 0 auto 2rem;
+            display: flex;
+            gap: 0.5rem;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 0.5rem;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            background: #30363d;
+            border-color: #8b949e;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-color: #764ba2;
+            color: white;
+        }
+
         .charts-container {
             max-width: 1400px;
             margin: 0 auto;
@@ -163,6 +198,11 @@
         <h1>Dunes Benchmarks</h1>
     </div>
 
+    <div class="tab-controls">
+        <button class="tab-btn active" data-category="Trees">Trees</button>
+        <button class="tab-btn" data-category="Doublets">Doublets</button>
+    </div>
+
     <div class="controls">
         <div class="control-section">
             <h3>Tree Implementation</h3>
@@ -198,6 +238,7 @@
     <script>
         // State management
         const state = {
+            selectedCategory: 'Trees',
             selectedTrees: new Set(['SBT', 'ART']),
             selectedUnit: 'mlinks',
             benchmarkData: null,
@@ -215,6 +256,13 @@
                 fill: 'rgba(118, 75, 162, 0.1)'
             }
         };
+
+        // Parse category from extra field
+        function parseCategory(extra) {
+            const match = extra.match(/category=(\w+)/);
+            // Default to 'Trees' for old benchmarks that don't have category tags
+            return match ? match[1] : 'Trees';
+        }
 
         // Parse tree type from extra field
         function parseTreeType(extra) {
@@ -271,10 +319,16 @@
                 };
 
                 entry.benches.forEach(bench => {
+                    const category = parseCategory(bench.extra);
                     const treeType = parseTreeType(bench.extra);
 
-                    // Skip if tree type not selected
-                    if (!state.selectedTrees.has(treeType)) {
+                    // Skip if category doesn't match selected category
+                    if (category !== state.selectedCategory) {
+                        return;
+                    }
+
+                    // For Trees category, skip if tree type not selected
+                    if (state.selectedCategory === 'Trees' && !state.selectedTrees.has(treeType)) {
                         return;
                     }
 
@@ -282,11 +336,14 @@
                         groups[bench.name] = {};
                     }
 
-                    if (!groups[bench.name][treeType]) {
-                        groups[bench.name][treeType] = [];
+                    // For Doublets, we use the benchmark name as the key since there's no tree type
+                    const groupKey = state.selectedCategory === 'Doublets' ? bench.name : treeType;
+
+                    if (!groups[bench.name][groupKey]) {
+                        groups[bench.name][groupKey] = [];
                     }
 
-                    groups[bench.name][treeType].push({
+                    groups[bench.name][groupKey].push({
                         ...bench,
                         commit: commitInfo
                     });
@@ -309,7 +366,7 @@
             // Prepare datasets for each tree type
             const datasets = [];
 
-            Object.entries(treeData).forEach(([treeType, benchmarks]) => {
+            Object.entries(treeData).forEach(([key, benchmarks]) => {
                 // Sort by date
                 benchmarks.sort((a, b) => a.commit.date - b.commit.date);
 
@@ -318,10 +375,12 @@
                     y: convertValue(b.value, b.unit, b.extra)
                 }));
 
-                const color = treeColors[treeType] || treeColors['SBT'];
+                // For Doublets, use a single dataset; for Trees, use tree type
+                const label = state.selectedCategory === 'Doublets' ? chartName : key;
+                const color = treeColors[key] || treeColors['SBT'];
 
                 datasets.push({
-                    label: treeType,
+                    label: label,
                     data: data,
                     borderColor: color.line,
                     backgroundColor: color.fill,
@@ -443,41 +502,85 @@
                 return;
             }
 
-            // Group charts by operation type
-            const operationTypes = {
-                'Insert Only': [],
-                'Insert + Search': [],
-                'Insert + Remove': []
-            };
+            if (state.selectedCategory === 'Trees') {
+                // Group charts by operation type for Trees
+                const operationTypes = {
+                    'Insert Only': [],
+                    'Insert + Search': [],
+                    'Insert + Remove': []
+                };
 
-            Object.entries(groups).forEach(([chartName, treeData]) => {
-                for (const opType in operationTypes) {
-                    if (chartName.startsWith(opType)) {
-                        operationTypes[opType].push({ chartName, treeData });
-                        return;
+                Object.entries(groups).forEach(([chartName, treeData]) => {
+                    for (const opType in operationTypes) {
+                        if (chartName.startsWith(opType)) {
+                            operationTypes[opType].push({ chartName, treeData });
+                            return;
+                        }
                     }
-                }
-            });
+                });
 
-            // Render charts by operation type
-            Object.entries(operationTypes).forEach(([opType, charts]) => {
-                if (charts.length === 0) return;
+                // Render charts by operation type
+                Object.entries(operationTypes).forEach(([opType, charts]) => {
+                    if (charts.length === 0) return;
 
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = 'chart-group';
+
+                    const heading = document.createElement('h2');
+                    heading.textContent = opType;
+                    groupDiv.appendChild(heading);
+
+                    charts.forEach(({ chartName, treeData }) => {
+                        createChart(chartName, treeData, groupDiv);
+                    });
+
+                    container.appendChild(groupDiv);
+                });
+            } else {
+                // For Doublets, just render all charts in one group
                 const groupDiv = document.createElement('div');
                 groupDiv.className = 'chart-group';
 
                 const heading = document.createElement('h2');
-                heading.textContent = opType;
+                heading.textContent = 'Doublets Operations';
                 groupDiv.appendChild(heading);
 
-                charts.forEach(({ chartName, treeData }) => {
+                Object.entries(groups).forEach(([chartName, treeData]) => {
                     createChart(chartName, treeData, groupDiv);
                 });
 
                 container.appendChild(groupDiv);
-            });
+            }
 
             container.style.display = 'block';
+        }
+
+        // Setup category tabs
+        function setupCategoryTabs() {
+            const tabs = document.querySelector('.tab-controls');
+            const treeSection = document.querySelector('.control-section:has(#tree-toggles)');
+
+            tabs.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('tab-btn')) return;
+
+                const category = e.target.dataset.category;
+
+                if (state.selectedCategory !== category) {
+                    state.selectedCategory = category;
+
+                    // Update active state
+                    tabs.querySelectorAll('.tab-btn').forEach(btn => {
+                        btn.classList.toggle('active', btn.dataset.category === category);
+                    });
+
+                    // Show/hide tree toggles based on category
+                    if (treeSection) {
+                        treeSection.style.display = category === 'Trees' ? 'block' : 'none';
+                    }
+
+                    renderCharts();
+                }
+            });
         }
 
         // Setup tree toggles
@@ -531,6 +634,7 @@
                 state.benchmarkData = window.BENCHMARK_DATA;
             }
 
+            setupCategoryTabs();
             setupTreeToggles();
             setupUnitToggles();
 
