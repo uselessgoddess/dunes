@@ -196,6 +196,8 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
   /// The `root` pointer must be valid and point to a value from
   /// `left_mut` or `right_mut`. No other tree node refs allowed.
   unsafe fn remove_impl(&mut self, mut root: *mut T, idx: T) -> Option<bool> {
+    // Save original root to detect if we're removing it
+    let original_root = *root;
     loop {
       let left = self.left_mut(*root).map(|r| r as *mut T);
       let right = self.right_mut(*root).map(|r| r as *mut T);
@@ -257,7 +259,8 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
           (_, Some(right_ptr)) => *root = *right_ptr,
           _ => {
             self.clear(idx);
-            return Some(true);
+            // Only return true (tree empty) if we're removing the original root
+            return Some(*root == original_root);
           }
         };
         self.clear(idx);

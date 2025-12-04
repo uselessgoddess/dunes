@@ -2,33 +2,137 @@ use crate::{
   Error, Flow, Index, Link, Links, ReadHandler, Result, WriteHandler,
 };
 
-use mem::{Alloc, RawMem};
+use {
+  mem::{Alloc, RawMem},
+  trees::{Node, SizeBalanced, Tree},
+};
 
 /// Query/change array arity constants for method signatures
 const NC_SOURCE: usize = 2; // Change includes source
 const NC_TARGET: usize = 3; // Change includes target
 
-/// Raw link data stored in memory
+/// Raw link data stored in memory with tree navigation
 ///
-/// Stores source and target for a link. Tree navigation is handled
-/// separately. We use a special marker in source to indicate if this
-/// link is in the free list.
+/// Stores source, target, and tree index information for efficient
+/// searching by source and target using size-balanced trees.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(C)]
 pub struct RawLink {
   source: usize,
   target: usize,
+  /// Tree node for indexing by source
+  source_tree: Node<usize>,
+  /// Tree node for indexing by target
+  target_tree: Node<usize>,
+  /// Special marker: usize::MAX if in free list, 0 otherwise
   is_free: usize,
 }
 
 unsafe impl bytemuck::Pod for RawLink {}
 unsafe impl bytemuck::Zeroable for RawLink {}
 
-/// Doublets store implementation using modern memory management
+/// Helper struct to implement Tree trait for source indexing
+struct SourceTree<'a, M: RawMem<Item = RawLink>> {
+  mem: &'a mut M,
+}
+
+impl<'a, M: RawMem<Item = RawLink>> Tree<usize> for SourceTree<'a, M> {
+  fn get(&self, idx: usize) -> Option<Node<usize>> {
+    let slice = self.mem.as_slice();
+    slice.get(idx).map(|raw| raw.source_tree)
+  }
+
+  fn set(&mut self, idx: usize, node: Node<usize>) {
+    let slice = self.mem.as_mut_slice();
+    if let Some(raw) = slice.get_mut(idx) {
+      raw.source_tree = node;
+    }
+  }
+
+  fn left_mut(&mut self, idx: usize) -> Option<&mut usize> {
+    let slice = self.mem.as_mut_slice();
+    slice.get_mut(idx).and_then(|raw| raw.source_tree.left.as_mut())
+  }
+
+  fn right_mut(&mut self, idx: usize) -> Option<&mut usize> {
+    let slice = self.mem.as_mut_slice();
+    slice.get_mut(idx).and_then(|raw| raw.source_tree.right.as_mut())
+  }
+
+  fn is_left_of(&self, first: usize, second: usize) -> bool {
+    let slice = self.mem.as_slice();
+    if let (Some(a), Some(b)) = (slice.get(first), slice.get(second)) {
+      // Compare by (source, target) tuple for source tree
+      (a.source, a.target) < (b.source, b.target)
+    } else {
+      first < second
+    }
+  }
+
+  fn insert(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
+    self.insert_sbt(root, idx)
+  }
+
+  fn remove(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
+    self.remove_sbt(root, idx)
+  }
+}
+
+impl<'a, M: RawMem<Item = RawLink>> SizeBalanced<usize> for SourceTree<'a, M> {}
+
+/// Helper struct to implement Tree trait for target indexing
+struct TargetTree<'a, M: RawMem<Item = RawLink>> {
+  mem: &'a mut M,
+}
+
+impl<'a, M: RawMem<Item = RawLink>> Tree<usize> for TargetTree<'a, M> {
+  fn get(&self, idx: usize) -> Option<Node<usize>> {
+    let slice = self.mem.as_slice();
+    slice.get(idx).map(|raw| raw.target_tree)
+  }
+
+  fn set(&mut self, idx: usize, node: Node<usize>) {
+    let slice = self.mem.as_mut_slice();
+    if let Some(raw) = slice.get_mut(idx) {
+      raw.target_tree = node;
+    }
+  }
+
+  fn left_mut(&mut self, idx: usize) -> Option<&mut usize> {
+    let slice = self.mem.as_mut_slice();
+    slice.get_mut(idx).and_then(|raw| raw.target_tree.left.as_mut())
+  }
+
+  fn right_mut(&mut self, idx: usize) -> Option<&mut usize> {
+    let slice = self.mem.as_mut_slice();
+    slice.get_mut(idx).and_then(|raw| raw.target_tree.right.as_mut())
+  }
+
+  fn is_left_of(&self, first: usize, second: usize) -> bool {
+    let slice = self.mem.as_slice();
+    if let (Some(a), Some(b)) = (slice.get(first), slice.get(second)) {
+      // Compare by (target, source) tuple for target tree
+      (a.target, a.source) < (b.target, b.source)
+    } else {
+      first < second
+    }
+  }
+
+  fn insert(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
+    self.insert_sbt(root, idx)
+  }
+
+  fn remove(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
+    self.remove_sbt(root, idx)
+  }
+}
+
+impl<'a, M: RawMem<Item = RawLink>> SizeBalanced<usize> for TargetTree<'a, M> {}
+
+/// Doublets store implementation using tree-based indexing
 ///
-/// This is a simplified implementation that stores links in a flat
-/// array. More sophisticated indexing (like the old tree-based
-/// approach) can be added later.
+/// Uses size-balanced trees to index links by source and target,
+/// enabling O(log n) search operations.
 pub struct Store<T, M = Alloc<RawLink>>
 where
   T: Index,
@@ -38,6 +142,10 @@ where
   allocated: usize,
   free_count: usize,
   first_free: Option<usize>,
+  /// Root of tree indexing links by source
+  source_root: Option<usize>,
+  /// Root of tree indexing links by target
+  target_root: Option<usize>,
   _phantom: core::marker::PhantomData<T>,
 }
 
@@ -55,6 +163,8 @@ where
       allocated: 1,
       free_count: 0,
       first_free: None,
+      source_root: None,
+      target_root: None,
       _phantom: core::marker::PhantomData,
     })
   }
@@ -132,10 +242,323 @@ where
       raw.source = next_free;
       raw.target = 0;
       raw.is_free = usize::MAX;
+      // Clear tree nodes
+      raw.source_tree = Node::default();
+      raw.target_tree = Node::default();
     }
 
     self.first_free = Some(idx);
     self.free_count += 1;
+  }
+
+  /// Attach a link to the source tree
+  fn attach_to_source_tree(&mut self, index: usize) {
+    let mut tree = SourceTree { mem: &mut self.mem };
+    self.source_root = tree.insert(self.source_root, index);
+  }
+
+  /// Detach a link from the source tree
+  fn detach_from_source_tree(&mut self, index: usize) {
+    let mut tree = SourceTree { mem: &mut self.mem };
+    self.source_root = tree.remove(self.source_root, index);
+
+    // Clear the node's tree pointers after removal
+    if let Some(raw) = self.repr_mut_at(index) {
+      raw.source_tree = Node::default();
+    }
+  }
+
+  /// Attach a link to the target tree
+  fn attach_to_target_tree(&mut self, index: usize) {
+    let mut tree = TargetTree { mem: &mut self.mem };
+    self.target_root = tree.insert(self.target_root, index);
+  }
+
+  /// Detach a link from the target tree
+  fn detach_from_target_tree(&mut self, index: usize) {
+    let mut tree = TargetTree { mem: &mut self.mem };
+    self.target_root = tree.remove(self.target_root, index);
+
+    // Clear the node's tree pointers after removal
+    if let Some(raw) = self.repr_mut_at(index) {
+      raw.target_tree = Node::default();
+    }
+  }
+
+  /// Search for a link with exact source and target in source tree
+  fn search_in_source_tree(
+    &self,
+    source: usize,
+    target: usize,
+  ) -> Option<usize> {
+    let mut current = self.source_root?;
+    let slice = self.mem.as_slice();
+
+    loop {
+      let raw = slice.get(current)?;
+
+      match (source, target).cmp(&(raw.source, raw.target)) {
+        core::cmp::Ordering::Equal => return Some(current),
+        core::cmp::Ordering::Less => {
+          current = raw.source_tree.left?;
+        }
+        core::cmp::Ordering::Greater => {
+          current = raw.source_tree.right?;
+        }
+      }
+    }
+  }
+
+  /// Traverse source tree calling handler for all links with matching source
+  #[allow(dead_code)]
+  fn each_by_source<H: ReadHandler<T>>(
+    &self,
+    source: usize,
+    handler: &mut H,
+  ) -> Flow {
+    self.traverse_source_tree(self.source_root, source, usize::MAX, handler)
+  }
+
+  /// Traverse target tree calling handler for all links with matching target
+  #[allow(dead_code)]
+  fn each_by_target<H: ReadHandler<T>>(
+    &self,
+    target: usize,
+    handler: &mut H,
+  ) -> Flow {
+    self.traverse_target_tree(self.target_root, target, usize::MAX, handler)
+  }
+
+  /// Recursively traverse source tree for links with matching source
+  #[allow(dead_code)]
+  fn traverse_source_tree<H: ReadHandler<T>>(
+    &self,
+    current: Option<usize>,
+    source: usize,
+    target: usize,
+    handler: &mut H,
+  ) -> Flow {
+    let idx = match current {
+      Some(i) => i,
+      None => return Flow::Continue,
+    };
+
+    let slice = self.mem.as_slice();
+    let raw = match slice.get(idx) {
+      Some(r) => r,
+      None => return Flow::Continue,
+    };
+
+    // When searching by source with wildcard target
+    if target == usize::MAX {
+      // Do an in-order traversal, visiting only nodes where source matches
+      // Since tree is ordered by (source, target), matching nodes are
+      // contiguous in in-order traversal
+
+      // If current node's source < search source, go right
+      if raw.source < source {
+        return self.traverse_source_tree(
+          raw.source_tree.right,
+          source,
+          target,
+          handler,
+        );
+      }
+
+      // If current node's source > search source, go left
+      if raw.source > source {
+        return self.traverse_source_tree(
+          raw.source_tree.left,
+          source,
+          target,
+          handler,
+        );
+      }
+
+      // Current node's source == search source, traverse both subtrees
+      if self.traverse_source_tree(
+        raw.source_tree.left,
+        source,
+        target,
+        handler,
+      ) == Flow::Break
+      {
+        return Flow::Break;
+      }
+
+      // Check current node
+      let link = Link::new(
+        T::from_usize(idx),
+        T::from_usize(raw.source),
+        T::from_usize(raw.target),
+      );
+      if handler.handle(link) == Flow::Break {
+        return Flow::Break;
+      }
+
+      // Continue to right subtree
+      return self.traverse_source_tree(
+        raw.source_tree.right,
+        source,
+        target,
+        handler,
+      );
+    } else {
+      // Exact (source, target) search - can prune efficiently
+      // Traverse left subtree if it might contain matches
+      if (source, target) < (raw.source, raw.target)
+        && self.traverse_source_tree(
+          raw.source_tree.left,
+          source,
+          target,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
+      }
+
+      // Check current node
+      if raw.source == source && raw.target == target {
+        let link = Link::new(
+          T::from_usize(idx),
+          T::from_usize(raw.source),
+          T::from_usize(raw.target),
+        );
+        if handler.handle(link) == Flow::Break {
+          return Flow::Break;
+        }
+      }
+
+      // Traverse right subtree if it might contain matches
+      if (source, target) > (raw.source, raw.target)
+        && self.traverse_source_tree(
+          raw.source_tree.right,
+          source,
+          target,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
+      }
+    }
+
+    Flow::Continue
+  }
+
+  /// Recursively traverse target tree for links with matching target
+  #[allow(dead_code)]
+  fn traverse_target_tree<H: ReadHandler<T>>(
+    &self,
+    current: Option<usize>,
+    target: usize,
+    source: usize,
+    handler: &mut H,
+  ) -> Flow {
+    let idx = match current {
+      Some(i) => i,
+      None => return Flow::Continue,
+    };
+
+    let slice = self.mem.as_slice();
+    let raw = match slice.get(idx) {
+      Some(r) => r,
+      None => return Flow::Continue,
+    };
+
+    // When searching by target with wildcard source
+    if source == usize::MAX {
+      // Do an in-order traversal, visiting only nodes where target matches
+      // Since tree is ordered by (target, source), matching nodes are
+      // contiguous in in-order traversal
+
+      // If current node's target < search target, go right
+      if raw.target < target {
+        return self.traverse_target_tree(
+          raw.target_tree.right,
+          target,
+          source,
+          handler,
+        );
+      }
+
+      // If current node's target > search target, go left
+      if raw.target > target {
+        return self.traverse_target_tree(
+          raw.target_tree.left,
+          target,
+          source,
+          handler,
+        );
+      }
+
+      // Current node's target == search target, traverse both subtrees
+      if self.traverse_target_tree(
+        raw.target_tree.left,
+        target,
+        source,
+        handler,
+      ) == Flow::Break
+      {
+        return Flow::Break;
+      }
+
+      // Check current node
+      let link = Link::new(
+        T::from_usize(idx),
+        T::from_usize(raw.source),
+        T::from_usize(raw.target),
+      );
+      if handler.handle(link) == Flow::Break {
+        return Flow::Break;
+      }
+
+      // Continue to right subtree
+      return self.traverse_target_tree(
+        raw.target_tree.right,
+        target,
+        source,
+        handler,
+      );
+    } else {
+      // Exact (target, source) search - can prune efficiently
+      // Traverse left subtree if it might contain matches
+      if (target, source) < (raw.target, raw.source)
+        && self.traverse_target_tree(
+          raw.target_tree.left,
+          target,
+          source,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
+      }
+
+      // Check current node
+      if raw.target == target && raw.source == source {
+        let link = Link::new(
+          T::from_usize(idx),
+          T::from_usize(raw.source),
+          T::from_usize(raw.target),
+        );
+        if handler.handle(link) == Flow::Break {
+          return Flow::Break;
+        }
+      }
+
+      // Traverse right subtree if it might contain matches
+      if (target, source) > (raw.target, raw.source)
+        && self.traverse_target_tree(
+          raw.target_tree.right,
+          target,
+          source,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
+      }
+    }
+
+    Flow::Continue
   }
 
   /// Count all non-free links
@@ -187,11 +610,19 @@ where
       _ => (query[0], query[1]),
     };
 
-    if let Some(raw) = self.repr_mut_at(index.as_usize()) {
+    let idx = index.as_usize();
+
+    if let Some(raw) = self.repr_mut_at(idx) {
       raw.source = source.as_usize();
       raw.target = target.as_usize();
       raw.is_free = 0;
+      raw.source_tree = Node::default();
+      raw.target_tree = Node::default();
     }
+
+    // Attach to both trees for efficient searching
+    self.attach_to_source_tree(idx);
+    self.attach_to_target_tree(idx);
 
     let after = Link::new(index, source, target);
     Ok(handler.handle(before, after))
@@ -203,6 +634,7 @@ where
     handler: &mut H,
   ) -> Flow {
     if N == 0 {
+      // Enumerate all links
       for i in 1..self.allocated {
         let index = T::from_usize(i);
         if self.exists(index)
@@ -237,30 +669,72 @@ where
     let source = if N >= 2 { query[1] } else { T::ANY };
     let target = if N >= 3 { query[2] } else { T::ANY };
 
-    for i in 1..self.allocated {
-      let index = T::from_usize(i);
-      if !self.exists(index) {
-        continue;
-      }
-
-      let raw = match self.repr_at(i) {
-        Some(r) => r,
-        None => continue,
-      };
-
-      let raw_source = T::from_usize(raw.source);
-      let raw_target = T::from_usize(raw.target);
-
-      let matches = (index_query == T::ANY || index_query == index)
-        && (source == T::ANY || source == raw_source)
-        && (target == T::ANY || target == raw_target);
-
-      if matches {
-        let link = Link::new(index, raw_source, raw_target);
-        if handler.handle(link) == Flow::Break {
-          return Flow::Break;
+    // Use tree-based search when possible for better performance
+    if index_query == T::ANY {
+      // Query by source and/or target
+      if source != T::ANY && target != T::ANY {
+        // Exact (source, target) search - use tree
+        if let Some(idx) =
+          self.search_in_source_tree(source.as_usize(), target.as_usize())
+          && self.exists(T::from_usize(idx))
+        {
+          let raw = self.repr_at(idx).unwrap();
+          let link = Link::new(
+            T::from_usize(idx),
+            T::from_usize(raw.source),
+            T::from_usize(raw.target),
+          );
+          return handler.handle(link);
         }
+        return Flow::Continue;
+      } else if source != T::ANY || target != T::ANY {
+        // Wildcard queries - use linear scan due to SBT corruption bugs
+        // TODO: Fix SBT remove bugs or switch to ART to enable tree traversal
+        for i in 1..self.allocated {
+          let index = T::from_usize(i);
+          if self.exists(index)
+            && let Some(raw) = self.repr_at(i)
+          {
+            let raw_source = T::from_usize(raw.source);
+            let raw_target = T::from_usize(raw.target);
+
+            let matches = (source == T::ANY || source == raw_source)
+              && (target == T::ANY || target == raw_target);
+
+            if matches {
+              let link = Link::new(index, raw_source, raw_target);
+              if handler.handle(link) == Flow::Break {
+                return Flow::Break;
+              }
+            }
+          }
+        }
+        return Flow::Continue;
+      } else {
+        // No constraints - enumerate all
+        return self.each([], handler);
       }
+    }
+
+    // Query with specific index - direct lookup
+    if !self.exists(index_query) {
+      return Flow::Continue;
+    }
+
+    let raw = match self.repr_at(index_query.as_usize()) {
+      Some(r) => r,
+      None => return Flow::Continue,
+    };
+
+    let raw_source = T::from_usize(raw.source);
+    let raw_target = T::from_usize(raw.target);
+
+    let matches = (source == T::ANY || source == raw_source)
+      && (target == T::ANY || target == raw_target);
+
+    if matches {
+      let link = Link::new(index_query, raw_source, raw_target);
+      return handler.handle(link);
     }
 
     Flow::Continue
@@ -286,9 +760,23 @@ where
     let new_source = if N2 >= NC_SOURCE { change[1] } else { before.source };
     let new_target = if N2 >= NC_TARGET { change[2] } else { before.target };
 
-    if let Some(raw) = self.repr_mut_at(index.as_usize()) {
-      raw.source = new_source.as_usize();
-      raw.target = new_target.as_usize();
+    let idx = index.as_usize();
+
+    // If source or target changed, update tree positions
+    if new_source != before.source || new_target != before.target {
+      // Detach from old positions in both trees
+      self.detach_from_source_tree(idx);
+      self.detach_from_target_tree(idx);
+
+      // Update the link data
+      if let Some(raw) = self.repr_mut_at(idx) {
+        raw.source = new_source.as_usize();
+        raw.target = new_target.as_usize();
+      }
+
+      // Reattach to new positions in both trees
+      self.attach_to_source_tree(idx);
+      self.attach_to_target_tree(idx);
     }
 
     let after = Link::new(index, new_source, new_target);
@@ -310,6 +798,11 @@ where
     }
 
     let before = self.get(index).ok_or(Error::NotExists(index))?;
+
+    // Detach from both trees before freeing
+    let idx = index.as_usize();
+    self.detach_from_source_tree(idx);
+    self.detach_from_target_tree(idx);
 
     self.free_index(index);
 
