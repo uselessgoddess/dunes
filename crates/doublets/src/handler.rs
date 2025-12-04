@@ -15,12 +15,6 @@ impl From<bool> for Flow {
   }
 }
 
-impl<T> From<Option<T>> for Flow {
-  fn from(value: Option<T>) -> Self {
-    if value.is_some() { Flow::Continue } else { Flow::Break }
-  }
-}
-
 /// Trait for types that can be converted to Flow
 pub trait IntoFlow {
   fn into_flow(self) -> Flow;
@@ -40,23 +34,9 @@ impl IntoFlow for bool {
   }
 }
 
-impl IntoFlow for () {
-  #[inline]
-  fn into_flow(self) -> Flow {
-    Flow::Continue
-  }
-}
-
-impl<T> IntoFlow for Option<T> {
-  #[inline]
-  fn into_flow(self) -> Flow {
-    Flow::from(self)
-  }
-}
-
 /// Handler function for read operations (iteration)
 ///
-/// Called for each link during iteration. Can return Flow, bool, (), or Option
+/// Called for each link during iteration. Can return Flow or bool
 /// to control whether to continue.
 pub trait ReadHandler<T: Index> {
   fn handle(&mut self, link: Link<T>) -> Flow;
@@ -75,7 +55,7 @@ where
 
 /// Handler function for write operations (create, update, delete)
 ///
-/// Called with before and after states. Can return Flow, bool, (), or Option
+/// Called with before and after states. Can return Flow or bool
 /// to control whether to continue.
 pub trait WriteHandler<T: Index> {
   fn handle(&mut self, before: Link<T>, after: Link<T>) -> Flow;

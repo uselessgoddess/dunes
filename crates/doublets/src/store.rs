@@ -4,6 +4,10 @@ use crate::{
 
 use mem::{Alloc, RawMem};
 
+/// Query/change array arity constants for method signatures
+const NC_SOURCE: usize = 2; // Change includes source
+const NC_TARGET: usize = 3; // Change includes target
+
 /// Raw link data stored in memory
 ///
 /// Stores source and target for a link. Tree navigation is handled
@@ -279,8 +283,8 @@ where
 
     let before = self.get(index).ok_or(Error::NotExists(index))?;
 
-    let new_source = if N2 >= 2 { change[1] } else { before.source };
-    let new_target = if N2 >= 3 { change[2] } else { before.target };
+    let new_source = if N2 >= NC_SOURCE { change[1] } else { before.source };
+    let new_target = if N2 >= NC_TARGET { change[2] } else { before.target };
 
     if let Some(raw) = self.repr_mut_at(index.as_usize()) {
       raw.source = new_source.as_usize();

@@ -54,11 +54,23 @@ fn bench_iteration(c: &mut Criterion) {
   });
 }
 
+fn bench_create_million_points(c: &mut Criterion) {
+  c.bench_function("create_million_points", |b| {
+    b.iter(|| {
+      let mut store = create_heap_store::<usize>().unwrap();
+      for _ in 0..1_000_000 {
+        black_box(store.create_point().unwrap());
+      }
+    });
+  });
+}
+
 criterion_group!(
   benches,
   bench_create_point,
   bench_create_link,
   bench_search,
-  bench_iteration
+  bench_iteration,
+  bench_create_million_points
 );
 criterion_main!(benches);
