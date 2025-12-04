@@ -8,7 +8,7 @@ mod traits;
 
 pub use {
   error::{Error, Result},
-  handler::{Flow, ReadHandler, WriteHandler},
+  handler::{Flow, IntoFlow, ReadHandler, WriteHandler},
   link::{Index, Link},
   store::{Store, create_heap_store},
   traits::{Doublets, Links},

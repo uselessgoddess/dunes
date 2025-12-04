@@ -25,25 +25,25 @@ unsafe impl bytemuck::Zeroable for RawLink {}
 /// This is a simplified implementation that stores links in a flat
 /// array. More sophisticated indexing (like the old tree-based
 /// approach) can be added later.
-pub struct Store<L, M = Alloc<RawLink>>
+pub struct Store<T, M = Alloc<RawLink>>
 where
-  L: Index,
+  T: Index,
   M: RawMem<Item = RawLink> + Send + Sync,
 {
   mem: M,
   allocated: usize,
   free_count: usize,
   first_free: Option<usize>,
-  _phantom: core::marker::PhantomData<L>,
+  _phantom: core::marker::PhantomData<T>,
 }
 
-impl<L, M> Store<L, M>
+impl<T, M> Store<T, M>
 where
-  L: Index,
+  T: Index,
   M: RawMem<Item = RawLink> + Send + Sync,
 {
   /// Create a new doublets store with default capacity
-  pub fn new(mut mem: M) -> Result<Self, L> {
+  pub fn new(mut mem: M) -> Result<Self, T> {
     mem.grow(1024).map_err(|_| Error::AllocationFailed)?.zeroed();
 
     Ok(Self {
@@ -70,7 +70,7 @@ where
   }
 
   /// Check if a link exists and is not in free list
-  fn exists(&self, index: L) -> bool {
+  fn exists(&self, index: T) -> bool {
     let idx = index.as_usize();
     if index.is_zero() || idx >= self.allocated {
       return false;
@@ -84,7 +84,7 @@ where
   }
 
   /// Allocate a new link index
-  fn allocate_index(&mut self) -> Result<L, L> {
+  fn allocate_index(&mut self) -> Result<T, T> {
     if let Some(free_index) = self.first_free {
       let next_free = if let Some(raw) = self.repr_at(free_index) {
         if raw.source == 0 { None } else { Some(raw.source) }
@@ -98,7 +98,7 @@ where
 
       self.first_free = next_free;
       self.free_count -= 1;
-      return Ok(L::from_usize(free_index));
+      return Ok(T::from_usize(free_index));
     }
 
     let index = self.allocated;
@@ -116,11 +116,11 @@ where
       raw.is_free = 0;
     }
 
-    Ok(L::from_usize(index))
+    Ok(T::from_usize(index))
   }
 
   /// Free a link index
-  fn free_index(&mut self, index: L) {
+  fn free_index(&mut self, index: T) {
     let idx = index.as_usize();
     let next_free = self.first_free.unwrap_or(0);
 
@@ -140,22 +140,22 @@ where
   }
 }
 
-impl<L, M> Links<L> for Store<L, M>
+impl<T, M> Links<T> for Store<T, M>
 where
-  L: Index,
+  T: Index,
   M: RawMem<Item = RawLink> + Send + Sync,
 {
-  fn count<const N: usize>(&self, query: [L; N]) -> L {
+  fn count<const N: usize>(&self, query: [T; N]) -> T {
     match N {
-      0 => L::from_usize(self.count_total()),
+      0 => T::from_usize(self.count_total()),
       1 => {
         let index = query[0];
-        if index == L::ANY {
-          L::from_usize(self.count_total())
+        if index == T::ANY {
+          T::from_usize(self.count_total())
         } else if self.exists(index) {
-          L::ONE
+          T::ONE
         } else {
-          L::ZERO
+          T::ZERO
         }
       }
       _ => {
@@ -164,21 +164,21 @@ where
           count += 1;
           Flow::Continue
         });
-        L::from_usize(count)
+        T::from_usize(count)
       }
     }
   }
 
-  fn create<const N: usize, H: WriteHandler<L>>(
+  fn create<const N: usize, H: WriteHandler<T>>(
     &mut self,
-    query: [L; N],
+    query: [T; N],
     handler: &mut H,
-  ) -> Result<Flow, L> {
+  ) -> Result<Flow, T> {
     let index = self.allocate_index()?;
     let before = Link::nothing();
 
     let (source, target) = match N {
-      0 => (L::ZERO, L::ZERO),
+      0 => (T::ZERO, T::ZERO),
       1 => (query[0], query[0]),
       _ => (query[0], query[1]),
     };
@@ -193,19 +193,19 @@ where
     Ok(handler.handle(before, after))
   }
 
-  fn each<const N: usize, H: ReadHandler<L>>(
+  fn each<const N: usize, H: ReadHandler<T>>(
     &self,
-    query: [L; N],
+    query: [T; N],
     handler: &mut H,
   ) -> Flow {
     if N == 0 {
       for i in 1..self.allocated {
-        let index = L::from_usize(i);
+        let index = T::from_usize(i);
         if self.exists(index)
           && let Some(raw) = self.repr_at(i)
         {
-          let source = L::from_usize(raw.source);
-          let target = L::from_usize(raw.target);
+          let source = T::from_usize(raw.source);
+          let target = T::from_usize(raw.target);
           let link = Link::new(index, source, target);
           if handler.handle(link) == Flow::Break {
             return Flow::Break;
@@ -218,23 +218,23 @@ where
     let index_query = query[0];
 
     if N == 1 {
-      if index_query == L::ANY {
+      if index_query == T::ANY {
         return self.each([], handler);
       } else if self.exists(index_query)
         && let Some(raw) = self.repr_at(index_query.as_usize())
       {
-        let source = L::from_usize(raw.source);
-        let target = L::from_usize(raw.target);
+        let source = T::from_usize(raw.source);
+        let target = T::from_usize(raw.target);
         return handler.handle(Link::new(index_query, source, target));
       }
       return Flow::Continue;
     }
 
-    let source = if N >= 2 { query[1] } else { L::ANY };
-    let target = if N >= 3 { query[2] } else { L::ANY };
+    let source = if N >= 2 { query[1] } else { T::ANY };
+    let target = if N >= 3 { query[2] } else { T::ANY };
 
     for i in 1..self.allocated {
-      let index = L::from_usize(i);
+      let index = T::from_usize(i);
       if !self.exists(index) {
         continue;
       }
@@ -244,12 +244,12 @@ where
         None => continue,
       };
 
-      let raw_source = L::from_usize(raw.source);
-      let raw_target = L::from_usize(raw.target);
+      let raw_source = T::from_usize(raw.source);
+      let raw_target = T::from_usize(raw.target);
 
-      let matches = (index_query == L::ANY || index_query == index)
-        && (source == L::ANY || source == raw_source)
-        && (target == L::ANY || target == raw_target);
+      let matches = (index_query == T::ANY || index_query == index)
+        && (source == T::ANY || source == raw_source)
+        && (target == T::ANY || target == raw_target);
 
       if matches {
         let link = Link::new(index, raw_source, raw_target);
@@ -262,12 +262,12 @@ where
     Flow::Continue
   }
 
-  fn update<const N1: usize, const N2: usize, H: WriteHandler<L>>(
+  fn update<const N1: usize, const N2: usize, H: WriteHandler<T>>(
     &mut self,
-    query: [L; N1],
-    change: [L; N2],
+    query: [T; N1],
+    change: [T; N2],
     handler: &mut H,
-  ) -> Result<Flow, L> {
+  ) -> Result<Flow, T> {
     if N1 == 0 || N2 == 0 {
       return Err(Error::InvalidQuery);
     }
@@ -291,11 +291,11 @@ where
     Ok(handler.handle(before, after))
   }
 
-  fn delete<const N: usize, H: WriteHandler<L>>(
+  fn delete<const N: usize, H: WriteHandler<T>>(
     &mut self,
-    query: [L; N],
+    query: [T; N],
     handler: &mut H,
-  ) -> Result<Flow, L> {
+  ) -> Result<Flow, T> {
     if N == 0 {
       return Err(Error::InvalidQuery);
     }
@@ -313,22 +313,22 @@ where
     Ok(handler.handle(before, after))
   }
 
-  fn get(&self, index: L) -> Option<Link<L>> {
+  fn get(&self, index: T) -> Option<Link<T>> {
     if !self.exists(index) {
       return None;
     }
 
     let raw = self.repr_at(index.as_usize())?;
-    let source = L::from_usize(raw.source);
-    let target = L::from_usize(raw.target);
+    let source = T::from_usize(raw.source);
+    let target = T::from_usize(raw.target);
     Some(Link::new(index, source, target))
   }
 }
 
 /// Create a doublets store with heap allocation
-pub fn create_heap_store<L>() -> Result<Store<L, Alloc<RawLink>>, L>
+pub fn create_heap_store<T>() -> Result<Store<T, Alloc<RawLink>>, T>
 where
-  L: Index,
+  T: Index,
 {
   Store::new(Alloc::new())
 }

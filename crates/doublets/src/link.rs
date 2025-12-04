@@ -112,30 +112,71 @@ impl_index!(i32, NonZeroI32);
 impl_index!(i64, NonZeroI64);
 impl_index!(i128, NonZeroI128);
 
+/// Macro to reserve a constant range for compile-time link constant checking
+///
+/// This macro generates const assertions to ensure that specific indices
+/// are reserved for constant links. Use this to define semantic constants
+/// that have special meaning in your application.
+///
+/// # Example
+/// ```ignore
+/// reserve_constants! {
+///   const NULL = 0;
+///   const MEANING = 1;
+///   const OF = 2;
+/// }
+/// ```
+#[macro_export]
+macro_rules! reserve_constants {
+  ($(const $name:ident = $value:expr;)*) => {
+    $(
+      pub const $name: usize = $value;
+
+      // Compile-time assertion that constants are in valid range
+      const _: () = {
+        if $value == 0 {
+          panic!("Reserved constant cannot be zero (reserved for ANY)");
+        }
+      };
+    )*
+
+    // Find the maximum constant value to determine reserved range
+    pub const MAX_RESERVED: usize = {
+      let mut max = 0;
+      $(
+        if $value > max {
+          max = $value;
+        }
+      )*
+      max
+    };
+  };
+}
+
 /// Represents a link/edge in the doublets database
 ///
 /// A link has an index (identifier), source, and target.
-/// All three components use the same type L which implements Index.
+/// All three components use the same type T which implements Index.
 #[derive(Default, Eq, PartialEq, Clone, Hash, Copy)]
 #[repr(C)]
-pub struct Link<L: Index> {
-  pub index: L,
-  pub source: L,
-  pub target: L,
+pub struct Link<T: Index> {
+  pub index: T,
+  pub source: T,
+  pub target: T,
 }
 
-impl<L: Index> Link<L> {
+impl<T: Index> Link<T> {
   /// Create a new link
   #[inline]
   #[must_use]
-  pub const fn new(index: L, source: L, target: L) -> Self {
+  pub const fn new(index: T, source: T, target: T) -> Self {
     Self { index, source, target }
   }
 
   /// Create a "point" link where all components are the same
   #[inline]
   #[must_use]
-  pub const fn point(val: L) -> Self {
+  pub const fn point(val: T) -> Self {
     Self::new(val, val, val)
   }
 
@@ -143,7 +184,7 @@ impl<L: Index> Link<L> {
   #[inline]
   #[must_use]
   pub const fn nothing() -> Self {
-    Self::new(L::ZERO, L::ZERO, L::ZERO)
+    Self::new(T::ZERO, T::ZERO, T::ZERO)
   }
 
   /// Check if this is a null link
@@ -168,13 +209,13 @@ impl<L: Index> Link<L> {
   }
 }
 
-impl<L: Index> Debug for Link<L> {
+impl<T: Index> Debug for Link<T> {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     write!(f, "{:?}: {:?} {:?}", self.index, self.source, self.target)
   }
 }
 
-unsafe impl<L: Index> bytemuck::Pod for Link<L> where L: bytemuck::Pod {}
+unsafe impl<T: Index> bytemuck::Pod for Link<T> where T: bytemuck::Pod {}
 #[rustfmt::skip]
-unsafe impl<L: Index> bytemuck::Zeroable for Link<L>
-where L: bytemuck::Zeroable {}
+unsafe impl<T: Index> bytemuck::Zeroable for Link<T>
+where T: bytemuck::Zeroable {}

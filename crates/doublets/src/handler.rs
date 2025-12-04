@@ -15,38 +15,79 @@ impl From<bool> for Flow {
   }
 }
 
-/// Handler function for read operations (iteration)
-///
-/// Called for each link during iteration. Returns Flow to control
-/// whether to continue.
-pub trait ReadHandler<L: Index> {
-  fn handle(&mut self, link: Link<L>) -> Flow;
+impl<T> From<Option<T>> for Flow {
+  fn from(value: Option<T>) -> Self {
+    if value.is_some() { Flow::Continue } else { Flow::Break }
+  }
 }
 
-impl<L, F> ReadHandler<L> for F
+/// Trait for types that can be converted to Flow
+pub trait IntoFlow {
+  fn into_flow(self) -> Flow;
+}
+
+impl IntoFlow for Flow {
+  #[inline]
+  fn into_flow(self) -> Flow {
+    self
+  }
+}
+
+impl IntoFlow for bool {
+  #[inline]
+  fn into_flow(self) -> Flow {
+    Flow::from(self)
+  }
+}
+
+impl IntoFlow for () {
+  #[inline]
+  fn into_flow(self) -> Flow {
+    Flow::Continue
+  }
+}
+
+impl<T> IntoFlow for Option<T> {
+  #[inline]
+  fn into_flow(self) -> Flow {
+    Flow::from(self)
+  }
+}
+
+/// Handler function for read operations (iteration)
+///
+/// Called for each link during iteration. Can return Flow, bool, (), or Option
+/// to control whether to continue.
+pub trait ReadHandler<T: Index> {
+  fn handle(&mut self, link: Link<T>) -> Flow;
+}
+
+impl<T, F, R> ReadHandler<T> for F
 where
-  L: Index,
-  F: FnMut(Link<L>) -> Flow,
+  T: Index,
+  F: FnMut(Link<T>) -> R,
+  R: IntoFlow,
 {
-  fn handle(&mut self, link: Link<L>) -> Flow {
-    self(link)
+  fn handle(&mut self, link: Link<T>) -> Flow {
+    self(link).into_flow()
   }
 }
 
 /// Handler function for write operations (create, update, delete)
 ///
-/// Called with before and after states. Returns Flow to control
-/// whether to continue.
-pub trait WriteHandler<L: Index> {
-  fn handle(&mut self, before: Link<L>, after: Link<L>) -> Flow;
+/// Called with before and after states. Can return Flow, bool, (), or Option
+/// to control whether to continue.
+pub trait WriteHandler<T: Index> {
+  fn handle(&mut self, before: Link<T>, after: Link<T>) -> Flow;
 }
 
-impl<L, F> WriteHandler<L> for F
+impl<T, F, R> WriteHandler<T> for F
 where
-  L: Index,
-  F: FnMut(Link<L>, Link<L>) -> Flow,
+  T: Index,
+  F: FnMut(Link<T>, Link<T>) -> R,
+  R: IntoFlow,
 {
-  fn handle(&mut self, before: Link<L>, after: Link<L>) -> Flow {
-    self(before, after)
+  fn handle(&mut self, before: Link<T>, after: Link<T>) -> Flow {
+    self(before, after).into_flow()
   }
 }
