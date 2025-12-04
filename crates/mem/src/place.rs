@@ -41,6 +41,7 @@ impl<T> RawPlace<T> {
     }
   }
 
+  #[allow(dead_code)]
   pub fn shrink_to(&mut self, cap: usize) {
     assert!(cap <= self.ptr.len());
     self.ptr = NonNull::slice_from_raw_parts(self.ptr.cast(), cap);

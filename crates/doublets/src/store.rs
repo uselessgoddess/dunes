@@ -310,6 +310,7 @@ where
   }
 
   /// Traverse source tree calling handler for all links with matching source
+  #[allow(dead_code)]
   fn each_by_source<H: ReadHandler<T>>(
     &self,
     source: usize,
@@ -319,6 +320,7 @@ where
   }
 
   /// Traverse target tree calling handler for all links with matching target
+  #[allow(dead_code)]
   fn each_by_target<H: ReadHandler<T>>(
     &self,
     target: usize,
@@ -328,6 +330,7 @@ where
   }
 
   /// Recursively traverse source tree for links with matching source
+  #[allow(dead_code)]
   fn traverse_source_tree<H: ReadHandler<T>>(
     &self,
     current: Option<usize>,
@@ -443,6 +446,7 @@ where
   }
 
   /// Recursively traverse target tree for links with matching target
+  #[allow(dead_code)]
   fn traverse_target_tree<H: ReadHandler<T>>(
     &self,
     current: Option<usize>,
