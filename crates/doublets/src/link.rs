@@ -11,7 +11,7 @@ use core::{
 /// This trait is implemented for both regular primitives (usize, u64, etc.)
 /// and NonZero primitives (NonZeroUsize, NonZeroU64, etc.)
 pub trait LinkIndex:
-  Copy + Clone + Eq + PartialEq + Ord + PartialOrd + Debug + Send + Sync + 'static
+  Copy + Clone + Eq + PartialEq + Ord + PartialOrd + Debug + Send + Sync
 {
   /// The zero value for this type
   fn zero() -> Self;
@@ -80,8 +80,9 @@ macro_rules! impl_link_index_nonzero {
       impl LinkIndex for $nz {
         #[inline]
         fn zero() -> Self {
-          // NonZero types can't represent zero, so we use 1 as the "zero" sentinel
-          // This is safe because we're treating 1 as the starting index
+          // NonZero types can't represent zero, so we use 1 as the
+          // "zero" sentinel. This is safe because we're treating 1
+          // as the starting index
           unsafe { Self::new_unchecked(1) }
         }
 

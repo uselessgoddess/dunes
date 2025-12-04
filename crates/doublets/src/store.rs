@@ -8,9 +8,10 @@ use {
 
 /// Raw link data stored in memory
 ///
-/// Stores source and target for a link. Tree navigation is handled separately.
-/// We use a special marker in source to indicate if this link is in the free list.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Stores source and target for a link. Tree navigation is handled
+/// separately. We use a special marker in source to indicate if this
+/// link is in the free list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(C)]
 pub struct RawLink {
   source: usize,
@@ -19,19 +20,14 @@ pub struct RawLink {
   is_free: usize,
 }
 
-impl Default for RawLink {
-  fn default() -> Self {
-    Self { source: 0, target: 0, is_free: 0 }
-  }
-}
-
 unsafe impl bytemuck::Pod for RawLink {}
 unsafe impl bytemuck::Zeroable for RawLink {}
 
 /// Doublets store implementation using modern memory management
 ///
-/// This is a simplified implementation that stores links in a flat array.
-/// More sophisticated indexing (like the old tree-based approach) can be added later.
+/// This is a simplified implementation that stores links in a flat
+/// array. More sophisticated indexing (like the old tree-based
+/// approach) can be added later.
 pub struct DoubletsStore<T, M = Alloc<RawLink>>
 where
   T: LinkIndex,
@@ -51,8 +47,8 @@ where
 {
   /// Create a new doublets store with default capacity
   pub fn new(mut mem: M) -> Result<Self, T> {
-    // Initial allocation
-    mem.grow(1024).map_err(|_| DoubletsError::AllocationFailed)?;
+    // Initial allocation - must call .zeroed() to mark memory as initialized
+    mem.grow(1024).map_err(|_| DoubletsError::AllocationFailed)?.zeroed();
 
     Ok(Self {
       mem,
@@ -97,8 +93,7 @@ where
     // Try to use free list first
     if let Some(free_index) = self.first_free {
       let next_free = if let Some(raw) = self.get_raw(free_index) {
-        let next = if raw.source == 0 { None } else { Some(raw.source) };
-        next
+        if raw.source == 0 { None } else { Some(raw.source) }
       } else {
         None
       };
@@ -119,9 +114,14 @@ where
 
     // Ensure we have enough memory
     if self.allocated >= self.mem.as_slice().len() {
-      let new_cap = self.mem.as_slice().len() * 2;
-      self.mem.grow(new_cap).map_err(|_| DoubletsError::AllocationFailed)?;
-      self.constants = Constants::new(new_cap);
+      let current_len = self.mem.as_slice().len();
+      let addition = current_len; // Double the capacity
+      self
+        .mem
+        .grow(addition)
+        .map_err(|_| DoubletsError::AllocationFailed)?
+        .zeroed();
+      self.constants = Constants::new(current_len + addition);
     }
 
     // Initialize the new link slot
@@ -224,14 +224,14 @@ where
       // Iterate all links
       for i in 1..self.allocated {
         let index = T::from_usize(i);
-        if self.exists(index) {
-          if let Some(raw) = self.get_raw(i) {
-            let source = T::from_usize(raw.source);
-            let target = T::from_usize(raw.target);
-            let link = Link::new(index, source, target);
-            if handler(link) == Flow::Break {
-              return Flow::Break;
-            }
+        if self.exists(index)
+          && let Some(raw) = self.get_raw(i)
+        {
+          let source = T::from_usize(raw.source);
+          let target = T::from_usize(raw.target);
+          let link = Link::new(index, source, target);
+          if handler(link) == Flow::Break {
+            return Flow::Break;
           }
         }
       }
@@ -243,12 +243,12 @@ where
     if query.len() == 1 {
       if index_query == any {
         return self.each(&[], handler);
-      } else if self.exists(index_query) {
-        if let Some(raw) = self.get_raw(index_query.as_usize()) {
-          let source = T::from_usize(raw.source);
-          let target = T::from_usize(raw.target);
-          return handler(Link::new(index_query, source, target));
-        }
+      } else if self.exists(index_query)
+        && let Some(raw) = self.get_raw(index_query.as_usize())
+      {
+        let source = T::from_usize(raw.source);
+        let target = T::from_usize(raw.target);
+        return handler(Link::new(index_query, source, target));
       }
       return Flow::Continue;
     }

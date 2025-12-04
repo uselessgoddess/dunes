@@ -17,12 +17,14 @@ impl From<bool> for Flow {
 
 /// Handler function for read operations (iteration)
 ///
-/// Called for each link during iteration. Returns Flow to control whether to continue.
+/// Called for each link during iteration. Returns Flow to control
+/// whether to continue.
 pub type ReadHandler<'a, T> = &'a mut dyn FnMut(Link<T>) -> Flow;
 
 /// Handler function for write operations (create, update, delete)
 ///
-/// Called with before and after states. Returns Flow to control whether to continue.
+/// Called with before and after states. Returns Flow to control
+/// whether to continue.
 pub type WriteHandler<'a, T> = &'a mut dyn FnMut(Link<T>, Link<T>) -> Flow;
 
 /// Constants for the doublets store
