@@ -218,7 +218,8 @@
         // Parse tree type from extra field
         function parseTreeType(extra) {
             const match = extra.match(/tree=(\w+)/);
-            return match ? match[1] : 'unknown';
+            // Default to 'SBT' for old benchmarks that don't have tree tags
+            return match ? match[1] : 'SBT';
         }
 
         // Parse operations count from extra field
