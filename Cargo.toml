@@ -5,7 +5,7 @@ edition = "2024"
 authors = ["uselesssgoddess"]
 
 [workspace]
-members = ["crates/mem", "crates/trees"]
+members = ["crates/mem", "crates/trees", "crates/doublets"]
 
 [workspace.dependencies]
 bytemuck = { version = "1.23", default-features = false }
