@@ -2,8 +2,10 @@ use crate::{
   Error, Flow, Index, Link, Links, ReadHandler, Result, WriteHandler,
 };
 
-use mem::{Alloc, RawMem};
-use trees::{Node, SizeBalanced, Tree};
+use {
+  mem::{Alloc, RawMem},
+  trees::{Node, SizeBalanced, Tree},
+};
 
 /// Query/change array arity constants for method signatures
 const NC_SOURCE: usize = 2; // Change includes source
@@ -274,7 +276,11 @@ where
   }
 
   /// Search for a link with exact source and target in source tree
-  fn search_in_source_tree(&self, source: usize, target: usize) -> Option<usize> {
+  fn search_in_source_tree(
+    &self,
+    source: usize,
+    target: usize,
+  ) -> Option<usize> {
     let mut current = self.source_root?;
     let slice = self.mem.as_slice();
 
@@ -294,12 +300,20 @@ where
   }
 
   /// Traverse source tree calling handler for all links with matching source
-  fn each_by_source<H: ReadHandler<T>>(&self, source: usize, handler: &mut H) -> Flow {
+  fn each_by_source<H: ReadHandler<T>>(
+    &self,
+    source: usize,
+    handler: &mut H,
+  ) -> Flow {
     self.traverse_source_tree(self.source_root, source, usize::MAX, handler)
   }
 
   /// Traverse target tree calling handler for all links with matching target
-  fn each_by_target<H: ReadHandler<T>>(&self, target: usize, handler: &mut H) -> Flow {
+  fn each_by_target<H: ReadHandler<T>>(
+    &self,
+    target: usize,
+    handler: &mut H,
+  ) -> Flow {
     self.traverse_target_tree(self.target_root, target, usize::MAX, handler)
   }
 
@@ -324,13 +338,16 @@ where
 
     // When searching by source with wildcard target
     if target == usize::MAX {
-      // Traverse left subtree if it might contain nodes with source <= current.source
-      if source <= raw.source {
-        if self.traverse_source_tree(raw.source_tree.left, source, target, handler)
-          == Flow::Break
-        {
-          return Flow::Break;
-        }
+      // Traverse left subtree for nodes with source <= current.source
+      if source <= raw.source
+        && self.traverse_source_tree(
+          raw.source_tree.left,
+          source,
+          target,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
       }
 
       // Check current node if source matches
@@ -345,23 +362,29 @@ where
         }
       }
 
-      // Traverse right subtree if it might contain nodes with source >= current.source
-      if source >= raw.source {
-        if self.traverse_source_tree(raw.source_tree.right, source, target, handler)
-          == Flow::Break
-        {
-          return Flow::Break;
-        }
+      // Traverse right subtree for nodes with source >= current.source
+      if source >= raw.source
+        && self.traverse_source_tree(
+          raw.source_tree.right,
+          source,
+          target,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
       }
     } else {
       // Exact (source, target) search - can prune efficiently
       // Traverse left subtree if it might contain matches
-      if (source, target) < (raw.source, raw.target) {
-        if self.traverse_source_tree(raw.source_tree.left, source, target, handler)
-          == Flow::Break
-        {
-          return Flow::Break;
-        }
+      if (source, target) < (raw.source, raw.target)
+        && self.traverse_source_tree(
+          raw.source_tree.left,
+          source,
+          target,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
       }
 
       // Check current node
@@ -377,12 +400,15 @@ where
       }
 
       // Traverse right subtree if it might contain matches
-      if (source, target) > (raw.source, raw.target) {
-        if self.traverse_source_tree(raw.source_tree.right, source, target, handler)
-          == Flow::Break
-        {
-          return Flow::Break;
-        }
+      if (source, target) > (raw.source, raw.target)
+        && self.traverse_source_tree(
+          raw.source_tree.right,
+          source,
+          target,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
       }
     }
 
@@ -410,13 +436,16 @@ where
 
     // When searching by target with wildcard source
     if source == usize::MAX {
-      // Traverse left subtree if it might contain nodes with target <= current.target
-      if target <= raw.target {
-        if self.traverse_target_tree(raw.target_tree.left, target, source, handler)
-          == Flow::Break
-        {
-          return Flow::Break;
-        }
+      // Traverse left subtree for nodes with target <= current.target
+      if target <= raw.target
+        && self.traverse_target_tree(
+          raw.target_tree.left,
+          target,
+          source,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
       }
 
       // Check current node if target matches
@@ -431,23 +460,29 @@ where
         }
       }
 
-      // Traverse right subtree if it might contain nodes with target >= current.target
-      if target >= raw.target {
-        if self.traverse_target_tree(raw.target_tree.right, target, source, handler)
-          == Flow::Break
-        {
-          return Flow::Break;
-        }
+      // Traverse right subtree for nodes with target >= current.target
+      if target >= raw.target
+        && self.traverse_target_tree(
+          raw.target_tree.right,
+          target,
+          source,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
       }
     } else {
       // Exact (target, source) search - can prune efficiently
       // Traverse left subtree if it might contain matches
-      if (target, source) < (raw.target, raw.source) {
-        if self.traverse_target_tree(raw.target_tree.left, target, source, handler)
-          == Flow::Break
-        {
-          return Flow::Break;
-        }
+      if (target, source) < (raw.target, raw.source)
+        && self.traverse_target_tree(
+          raw.target_tree.left,
+          target,
+          source,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
       }
 
       // Check current node
@@ -463,12 +498,15 @@ where
       }
 
       // Traverse right subtree if it might contain matches
-      if (target, source) > (raw.target, raw.source) {
-        if self.traverse_target_tree(raw.target_tree.right, target, source, handler)
-          == Flow::Break
-        {
-          return Flow::Break;
-        }
+      if (target, source) > (raw.target, raw.source)
+        && self.traverse_target_tree(
+          raw.target_tree.right,
+          target,
+          source,
+          handler,
+        ) == Flow::Break
+      {
+        return Flow::Break;
       }
     }
 
@@ -590,16 +628,15 @@ where
         // Exact (source, target) search
         if let Some(idx) =
           self.search_in_source_tree(source.as_usize(), target.as_usize())
+          && self.exists(T::from_usize(idx))
         {
-          if self.exists(T::from_usize(idx)) {
-            let raw = self.repr_at(idx).unwrap();
-            let link = Link::new(
-              T::from_usize(idx),
-              T::from_usize(raw.source),
-              T::from_usize(raw.target),
-            );
-            return handler.handle(link);
-          }
+          let raw = self.repr_at(idx).unwrap();
+          let link = Link::new(
+            T::from_usize(idx),
+            T::from_usize(raw.source),
+            T::from_usize(raw.target),
+          );
+          return handler.handle(link);
         }
         return Flow::Continue;
       } else if source != T::ANY {
