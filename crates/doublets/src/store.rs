@@ -10,30 +10,30 @@ use {
 /// Marker trait for tree strategies that can insert and remove from trees
 pub trait TreeStrategy<T: trees::Idx>: Send + Sync {
   /// Insert into tree using this strategy
-  fn insert<Tr: Tree<T>>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  fn insert<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
   where
-    Tr: SizeBalanced<T> + AdaptiveRadix<T>;
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>;
 
   /// Remove from tree using this strategy
-  fn remove<Tr: Tree<T>>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  fn remove<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
   where
-    Tr: SizeBalanced<T> + AdaptiveRadix<T>;
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>;
 }
 
 /// Size-Balanced Tree strategy marker
 pub struct SbtStrategy;
 
 impl<T: trees::Idx> TreeStrategy<T> for SbtStrategy {
-  fn insert<Tr: Tree<T>>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  fn insert<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
   where
-    Tr: SizeBalanced<T> + AdaptiveRadix<T>,
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>,
   {
     SizeBalanced::insert_sbt(tree, root, idx)
   }
 
-  fn remove<Tr: Tree<T>>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  fn remove<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
   where
-    Tr: SizeBalanced<T> + AdaptiveRadix<T>,
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>,
   {
     SizeBalanced::remove_sbt(tree, root, idx)
   }
@@ -43,16 +43,16 @@ impl<T: trees::Idx> TreeStrategy<T> for SbtStrategy {
 pub struct ArtStrategy;
 
 impl<T: trees::Idx> TreeStrategy<T> for ArtStrategy {
-  fn insert<Tr: Tree<T>>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  fn insert<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
   where
-    Tr: SizeBalanced<T> + AdaptiveRadix<T>,
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>,
   {
     AdaptiveRadix::insert_art(tree, root, idx)
   }
 
-  fn remove<Tr: Tree<T>>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  fn remove<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
   where
-    Tr: SizeBalanced<T> + AdaptiveRadix<T>,
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>,
   {
     AdaptiveRadix::remove_art(tree, root, idx)
   }
