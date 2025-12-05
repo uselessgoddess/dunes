@@ -77,9 +77,14 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
 
   /// Insert index into tree using SBT balancing, returns new root
   fn insert_sbt(&mut self, root: Option<T>, idx: T) -> Option<T> {
-    if let Some(mut root_val) = root {
-      unsafe { self.insert_impl(&mut root_val, idx)? }
-      Some(root_val)
+    if let Some(root_val) = root {
+      // Check if value already exists - don't insert duplicates
+      if self.contains(root_val, idx) {
+        return Some(root_val);
+      }
+      let mut root_ptr = root_val;
+      unsafe { self.insert_impl(&mut root_ptr, idx)? }
+      Some(root_ptr)
     } else {
       self.set_size(idx, 1);
       Some(idx)
@@ -236,22 +241,39 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
         // Two children: find leftmost node in right subtree
         let leftmost = self.leftest(right_child);
 
-        // Recursively detach the leftmost node from right subtree
-        let right_ptr = self.right_mut(node_to_detach).map(|r| r as *mut T)?;
-        self.detach_node(right_ptr, leftmost)?;
-
         // Set up the leftmost node as replacement
         self.set_left(leftmost, Some(left_child));
-        let new_right = self.right(node_to_detach);
 
-        if let Some(new_right_val) = new_right {
-          self.set_right(leftmost, Some(new_right_val));
-          let left_size = self.size(left_child)?;
-          let right_size = self.size(new_right_val)?;
-          self.set_size(leftmost, left_size + right_size + 1);
+        // Handle the right subtree after detaching leftmost
+        if leftmost == right_child {
+          // The right child itself is the leftmost - just use its right child
+          let new_right = self.right(leftmost);
+          if let Some(new_right_val) = new_right {
+            self.set_right(leftmost, Some(new_right_val));
+            let left_size = self.size(left_child)?;
+            let right_size = self.size(new_right_val)?;
+            self.set_size(leftmost, left_size + right_size + 1);
+          } else {
+            self.set_right(leftmost, None);
+            let left_size = self.size(left_child)?;
+            self.set_size(leftmost, left_size + 1);
+          }
         } else {
-          let left_size = self.size(left_child)?;
-          self.set_size(leftmost, left_size + 1);
+          // Leftmost is deeper in the right subtree - detach it
+          let right_ptr = self.right_mut(node_to_detach).map(|r| r as *mut T)?;
+          self.detach_node(right_ptr, leftmost)?;
+
+          let new_right = self.right(node_to_detach);
+          if let Some(new_right_val) = new_right {
+            self.set_right(leftmost, Some(new_right_val));
+            let left_size = self.size(left_child)?;
+            let right_size = self.size(new_right_val)?;
+            self.set_size(leftmost, left_size + right_size + 1);
+          } else {
+            self.set_right(leftmost, None);
+            let left_size = self.size(left_child)?;
+            self.set_size(leftmost, left_size + 1);
+          }
         }
 
         Some(leftmost)
@@ -283,7 +305,7 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
   }
 
   /// Helper to detach a specific node from a subtree
-  /// Similar to remove_impl but doesn't handle the root == node case
+  /// Updates the root pointer if the node to detach IS the root
   ///
   /// # Safety
   ///
@@ -337,8 +359,16 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
       (None, None) => None,
     };
 
-    // Update parent
-    if self.left(*parent) == Some(*current) {
+    // Update parent - handle the case where current == root
+    if *current == *root {
+      // Detaching the root of the subtree - update the root pointer
+      if let Some(repl) = replacement {
+        *root = repl;
+      } else {
+        // Subtree becomes empty - this shouldn't happen in normal use
+        // but we'll leave the root pointer unchanged
+      }
+    } else if self.left(*parent) == Some(*current) {
       self.set_left(*parent, replacement);
     } else if self.right(*parent) == Some(*current) {
       self.set_right(*parent, replacement);

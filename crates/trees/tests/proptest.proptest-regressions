@@ -5,3 +5,5 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 0ccbb61d589cbb1ccdcf46755691e0fb00b70504d4074f61f3d5352b08716909 # shrinks to values = {16, 29, 11, 15, 17}, cycles = 1
+cc 75441a2d8f33231e0bc37eb9a055e5edf5c385454d693c4ab240072a64660549 # shrinks to ops = [(136, true), (1, false), (1, false), (1, false), (1, false), (1, false), (1, false), (1, false), (1, false), (1, false), (1, false), (1, false), (1, true), (137, true), (2, false), (2, false), (136, false), (1, false), (1, false), (1, false)]
+cc e5ad1054b301e2f5e22715d726a95270c8bc3ec01886c715468f92922e737b79 # shrinks to ops = [(92, true), (1, true), (92, true)]
