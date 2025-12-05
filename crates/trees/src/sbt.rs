@@ -263,7 +263,8 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
           }
         } else {
           // Leftmost is deeper in the right subtree - detach it
-          let right_ptr = self.right_mut(node_to_detach).map(|r| r as *mut T)?;
+          let right_ptr =
+            self.right_mut(node_to_detach).map(|r| r as *mut T)?;
           self.detach_node(right_ptr, leftmost)?;
 
           let new_right = self.right(node_to_detach);
