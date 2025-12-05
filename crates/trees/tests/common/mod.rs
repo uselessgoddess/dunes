@@ -70,6 +70,14 @@ impl<T: Idx> Tree<T> for VecStore<T> {
   fn is_left_of(&self, first: T, second: T) -> bool {
     first.as_usize() < second.as_usize()
   }
+
+  fn insert(&mut self, root: Option<T>, idx: T) -> Option<T> {
+    SizeBalanced::insert_sbt(self, root, idx)
+  }
+
+  fn remove(&mut self, root: Option<T>, idx: T) -> Option<T> {
+    SizeBalanced::remove_sbt(self, root, idx)
+  }
 }
 
 // SBT strategy

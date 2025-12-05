@@ -127,6 +127,14 @@ impl<'a, M: RawMem<Item = RawLink>, S> Tree<usize> for SourceTree<'a, M, S> {
       first < second
     }
   }
+
+  fn insert(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
+    SizeBalanced::insert_sbt(self, root, idx)
+  }
+
+  fn remove(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
+    SizeBalanced::remove_sbt(self, root, idx)
+  }
 }
 
 // Implement SizeBalanced for all strategies (required by trait bounds)
@@ -185,6 +193,14 @@ impl<'a, M: RawMem<Item = RawLink>, S> Tree<usize> for TargetTree<'a, M, S> {
     } else {
       first < second
     }
+  }
+
+  fn insert(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
+    SizeBalanced::insert_sbt(self, root, idx)
+  }
+
+  fn remove(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
+    SizeBalanced::remove_sbt(self, root, idx)
   }
 }
 

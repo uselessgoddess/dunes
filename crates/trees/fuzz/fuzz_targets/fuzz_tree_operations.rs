@@ -50,6 +50,8 @@ impl<T: Idx> Tree<T> for Store<T> {
   }
 }
 
+impl<T: Idx> SizeBalanced<T> for Store<T> {}
+
 #[derive(Debug, Clone, Arbitrary)]
 enum TreeOp {
   Insert(u8),
