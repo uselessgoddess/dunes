@@ -4,8 +4,59 @@ use crate::{
 
 use {
   mem::{Alloc, RawMem},
-  trees::{Node, SizeBalanced, Tree},
+  trees::{AdaptiveRadix, Node, SizeBalanced, Tree},
 };
+
+/// Marker trait for tree strategies that can insert and remove from trees
+pub trait TreeStrategy<T: trees::Idx>: Send + Sync {
+  /// Insert into tree using this strategy
+  fn insert<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  where
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>;
+
+  /// Remove from tree using this strategy
+  fn remove<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  where
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>;
+}
+
+/// Size-Balanced Tree strategy marker
+pub struct SbtStrategy;
+
+impl<T: trees::Idx> TreeStrategy<T> for SbtStrategy {
+  fn insert<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  where
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>,
+  {
+    SizeBalanced::insert_sbt(tree, root, idx)
+  }
+
+  fn remove<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  where
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>,
+  {
+    SizeBalanced::remove_sbt(tree, root, idx)
+  }
+}
+
+/// Adaptive Radix Tree strategy marker
+pub struct ArtStrategy;
+
+impl<T: trees::Idx> TreeStrategy<T> for ArtStrategy {
+  fn insert<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  where
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>,
+  {
+    AdaptiveRadix::insert_art(tree, root, idx)
+  }
+
+  fn remove<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
+  where
+    Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>,
+  {
+    AdaptiveRadix::remove_art(tree, root, idx)
+  }
+}
 
 /// Query/change array arity constants for method signatures
 const NC_SOURCE: usize = 2; // Change includes source
@@ -31,12 +82,20 @@ pub struct RawLink {
 unsafe impl bytemuck::Pod for RawLink {}
 unsafe impl bytemuck::Zeroable for RawLink {}
 
-/// Helper struct to implement Tree trait for source indexing
-struct SourceTree<'a, M: RawMem<Item = RawLink>> {
+/// Helper struct to implement Tree trait for source indexing with
+/// configurable strategy
+struct SourceTree<'a, M: RawMem<Item = RawLink>, S> {
   mem: &'a mut M,
+  _strategy: core::marker::PhantomData<S>,
 }
 
-impl<'a, M: RawMem<Item = RawLink>> Tree<usize> for SourceTree<'a, M> {
+impl<'a, M: RawMem<Item = RawLink>, S> SourceTree<'a, M, S> {
+  fn new(mem: &'a mut M) -> Self {
+    Self { mem, _strategy: core::marker::PhantomData }
+  }
+}
+
+impl<'a, M: RawMem<Item = RawLink>, S> Tree<usize> for SourceTree<'a, M, S> {
   fn get(&self, idx: usize) -> Option<Node<usize>> {
     let slice = self.mem.as_slice();
     slice.get(idx).map(|raw| raw.source_tree)
@@ -68,24 +127,34 @@ impl<'a, M: RawMem<Item = RawLink>> Tree<usize> for SourceTree<'a, M> {
       first < second
     }
   }
-
-  fn insert(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
-    self.insert_sbt(root, idx)
-  }
-
-  fn remove(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
-    self.remove_sbt(root, idx)
-  }
 }
 
-impl<'a, M: RawMem<Item = RawLink>> SizeBalanced<usize> for SourceTree<'a, M> {}
+// Implement SizeBalanced for all strategies (required by trait bounds)
+impl<'a, M: RawMem<Item = RawLink>, S> SizeBalanced<usize>
+  for SourceTree<'a, M, S>
+{
+}
 
-/// Helper struct to implement Tree trait for target indexing
-struct TargetTree<'a, M: RawMem<Item = RawLink>> {
+// Implement AdaptiveRadix for all strategies (required by trait bounds)
+impl<'a, M: RawMem<Item = RawLink>, S> AdaptiveRadix<usize>
+  for SourceTree<'a, M, S>
+{
+}
+
+/// Helper struct to implement Tree trait for target indexing with
+/// configurable strategy
+struct TargetTree<'a, M: RawMem<Item = RawLink>, S> {
   mem: &'a mut M,
+  _strategy: core::marker::PhantomData<S>,
 }
 
-impl<'a, M: RawMem<Item = RawLink>> Tree<usize> for TargetTree<'a, M> {
+impl<'a, M: RawMem<Item = RawLink>, S> TargetTree<'a, M, S> {
+  fn new(mem: &'a mut M) -> Self {
+    Self { mem, _strategy: core::marker::PhantomData }
+  }
+}
+
+impl<'a, M: RawMem<Item = RawLink>, S> Tree<usize> for TargetTree<'a, M, S> {
   fn get(&self, idx: usize) -> Option<Node<usize>> {
     let slice = self.mem.as_slice();
     slice.get(idx).map(|raw| raw.target_tree)
@@ -117,26 +186,56 @@ impl<'a, M: RawMem<Item = RawLink>> Tree<usize> for TargetTree<'a, M> {
       first < second
     }
   }
-
-  fn insert(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
-    self.insert_sbt(root, idx)
-  }
-
-  fn remove(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
-    self.remove_sbt(root, idx)
-  }
 }
 
-impl<'a, M: RawMem<Item = RawLink>> SizeBalanced<usize> for TargetTree<'a, M> {}
+// Implement SizeBalanced for all strategies (required by trait bounds)
+impl<'a, M: RawMem<Item = RawLink>, S> SizeBalanced<usize>
+  for TargetTree<'a, M, S>
+{
+}
+
+// Implement AdaptiveRadix for all strategies (required by trait bounds)
+impl<'a, M: RawMem<Item = RawLink>, S> AdaptiveRadix<usize>
+  for TargetTree<'a, M, S>
+{
+}
 
 /// Doublets store implementation using tree-based indexing
 ///
-/// Uses size-balanced trees to index links by source and target,
-/// enabling O(log n) search operations.
-pub struct Store<T, M = Alloc<RawLink>>
-where
+/// Generic over tree strategies for both source and target indexing.
+///
+/// # Type Parameters
+/// * `T` - Index type (usually usize)
+/// * `M` - Memory backend (default: heap allocation)
+/// * `SourceStrategy` - Tree strategy for source indexing
+///   (SbtStrategy or ArtStrategy)
+/// * `TargetStrategy` - Tree strategy for target indexing
+///   (SbtStrategy or ArtStrategy)
+///
+/// # Examples
+/// ```
+/// use doublets::{SbtStrategy, ArtStrategy, create_heap_store_with_strategies};
+///
+/// // Create a store with SBT for both source and target trees
+/// let mut sbt_store =
+///   create_heap_store_with_strategies::<usize, SbtStrategy, SbtStrategy>()
+///     .unwrap();
+///
+/// // Create a store with mixed strategies
+/// let mut mixed_store =
+///   create_heap_store_with_strategies::<usize, SbtStrategy, ArtStrategy>()
+///     .unwrap();
+/// ```
+pub struct Store<
+  T,
+  M = Alloc<RawLink>,
+  SourceStrategy = SbtStrategy,
+  TargetStrategy = SbtStrategy,
+> where
   T: Index,
   M: RawMem<Item = RawLink> + Send + Sync,
+  SourceStrategy: TreeStrategy<usize>,
+  TargetStrategy: TreeStrategy<usize>,
 {
   mem: M,
   allocated: usize,
@@ -146,13 +245,16 @@ where
   source_root: Option<usize>,
   /// Root of tree indexing links by target
   target_root: Option<usize>,
-  _phantom: core::marker::PhantomData<T>,
+  _phantom: core::marker::PhantomData<(T, SourceStrategy, TargetStrategy)>,
 }
 
-impl<T, M> Store<T, M>
+impl<T, M, SourceStrategy, TargetStrategy>
+  Store<T, M, SourceStrategy, TargetStrategy>
 where
   T: Index,
   M: RawMem<Item = RawLink> + Send + Sync,
+  SourceStrategy: TreeStrategy<usize>,
+  TargetStrategy: TreeStrategy<usize>,
 {
   /// Create a new doublets store with default capacity
   pub fn new(mut mem: M) -> Result<Self, T> {
@@ -252,15 +354,25 @@ where
   }
 
   /// Attach a link to the source tree
-  fn attach_to_source_tree(&mut self, index: usize) {
-    let mut tree = SourceTree { mem: &mut self.mem };
-    self.source_root = tree.insert(self.source_root, index);
+  fn attach_to_source_tree(&mut self, index: usize)
+  where
+    for<'a> SourceTree<'a, M, SourceStrategy>:
+      SizeBalanced<usize> + AdaptiveRadix<usize>,
+  {
+    let mut tree = SourceTree::<M, SourceStrategy>::new(&mut self.mem);
+    self.source_root =
+      SourceStrategy::insert(&mut tree, self.source_root, index);
   }
 
   /// Detach a link from the source tree
-  fn detach_from_source_tree(&mut self, index: usize) {
-    let mut tree = SourceTree { mem: &mut self.mem };
-    self.source_root = tree.remove(self.source_root, index);
+  fn detach_from_source_tree(&mut self, index: usize)
+  where
+    for<'a> SourceTree<'a, M, SourceStrategy>:
+      SizeBalanced<usize> + AdaptiveRadix<usize>,
+  {
+    let mut tree = SourceTree::<M, SourceStrategy>::new(&mut self.mem);
+    self.source_root =
+      SourceStrategy::remove(&mut tree, self.source_root, index);
 
     // Clear the node's tree pointers after removal
     if let Some(raw) = self.repr_mut_at(index) {
@@ -269,15 +381,25 @@ where
   }
 
   /// Attach a link to the target tree
-  fn attach_to_target_tree(&mut self, index: usize) {
-    let mut tree = TargetTree { mem: &mut self.mem };
-    self.target_root = tree.insert(self.target_root, index);
+  fn attach_to_target_tree(&mut self, index: usize)
+  where
+    for<'a> TargetTree<'a, M, TargetStrategy>:
+      SizeBalanced<usize> + AdaptiveRadix<usize>,
+  {
+    let mut tree = TargetTree::<M, TargetStrategy>::new(&mut self.mem);
+    self.target_root =
+      TargetStrategy::insert(&mut tree, self.target_root, index);
   }
 
   /// Detach a link from the target tree
-  fn detach_from_target_tree(&mut self, index: usize) {
-    let mut tree = TargetTree { mem: &mut self.mem };
-    self.target_root = tree.remove(self.target_root, index);
+  fn detach_from_target_tree(&mut self, index: usize)
+  where
+    for<'a> TargetTree<'a, M, TargetStrategy>:
+      SizeBalanced<usize> + AdaptiveRadix<usize>,
+  {
+    let mut tree = TargetTree::<M, TargetStrategy>::new(&mut self.mem);
+    self.target_root =
+      TargetStrategy::remove(&mut tree, self.target_root, index);
 
     // Clear the node's tree pointers after removal
     if let Some(raw) = self.repr_mut_at(index) {
@@ -567,10 +689,13 @@ where
   }
 }
 
-impl<T, M> Links<T> for Store<T, M>
+impl<T, M, SourceStrategy, TargetStrategy> Links<T>
+  for Store<T, M, SourceStrategy, TargetStrategy>
 where
   T: Index,
   M: RawMem<Item = RawLink> + Send + Sync,
+  SourceStrategy: TreeStrategy<usize>,
+  TargetStrategy: TreeStrategy<usize>,
 {
   fn count<const N: usize>(&self, query: [T; N]) -> T {
     match N {
@@ -822,10 +947,23 @@ where
   }
 }
 
-/// Create a doublets store with heap allocation
-pub fn create_heap_store<T>() -> Result<Store<T, Alloc<RawLink>>, T>
+/// Create a doublets store with heap allocation using SBT
+/// (Size-Balanced Tree) for both source and target trees
+pub fn create_heap_store<T>()
+-> Result<Store<T, Alloc<RawLink>, SbtStrategy, SbtStrategy>, T>
 where
   T: Index,
+{
+  Store::new(Alloc::new())
+}
+
+/// Create a doublets store with heap allocation and custom tree strategies
+pub fn create_heap_store_with_strategies<T, SourceStrategy, TargetStrategy>()
+-> Result<Store<T, Alloc<RawLink>, SourceStrategy, TargetStrategy>, T>
+where
+  T: Index,
+  SourceStrategy: TreeStrategy<usize>,
+  TargetStrategy: TreeStrategy<usize>,
 {
   Store::new(Alloc::new())
 }
