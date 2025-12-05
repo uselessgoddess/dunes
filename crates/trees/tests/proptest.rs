@@ -9,8 +9,14 @@ use {
 // Comprehensive proptest cases to avoid corrupted tree bugs (issue #46)
 // Using 128 cases for good coverage while keeping CI times reasonable
 // For more extensive fuzzing, use cargo-fuzz (see crates/trees/fuzz/)
+// 60s timeout per test case to avoid infinite recursion issues
 proptest! {
-  #![proptest_config(ProptestConfig::with_cases(128))]
+  #![proptest_config(ProptestConfig {
+    cases: 128,
+    fork: true,  // Required for timeout to work
+    timeout: 60000, // 60s timeout per test case (in milliseconds)
+    .. ProptestConfig::default()
+  })]
 
   #[test]
   fn prop_insert_and_search(
