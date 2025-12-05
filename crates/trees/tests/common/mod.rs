@@ -70,15 +70,6 @@ impl<T: Idx> Tree<T> for VecStore<T> {
   fn is_left_of(&self, first: T, second: T) -> bool {
     first.as_usize() < second.as_usize()
   }
-
-  // Default implementation - will be overridden by strategy traits
-  fn insert(&mut self, root: Option<T>, idx: T) -> Option<T> {
-    self.insert_sbt(root, idx)
-  }
-
-  fn remove(&mut self, root: Option<T>, idx: T) -> Option<T> {
-    self.remove_sbt(root, idx)
-  }
 }
 
 // SBT strategy
@@ -133,12 +124,13 @@ impl<T: Idx> Tree<T> for ArtStore<T> {
     self.inner.is_left_of(first, second)
   }
 
+  // Override to use ART instead of default SBT
   fn insert(&mut self, root: Option<T>, idx: T) -> Option<T> {
-    self.insert_art(root, idx)
+    AdaptiveRadix::insert_art(self, root, idx)
   }
 
   fn remove(&mut self, root: Option<T>, idx: T) -> Option<T> {
-    self.remove_art(root, idx)
+    AdaptiveRadix::remove_art(self, root, idx)
   }
 }
 
