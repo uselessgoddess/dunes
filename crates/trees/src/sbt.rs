@@ -195,7 +195,7 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
   /// - Some(true): Tree became empty after removal
   /// - Some(false): Removal successful, tree not empty
   /// - None: Value not found in tree
-  /// (tree state may be corrupted - caller must handle)
+  ///   (tree state may be corrupted - caller must handle)
   ///
   /// # Safety
   ///

@@ -113,7 +113,8 @@ pub trait Tree<T: Idx> {
   /// Insert index into tree, returns new root
   ///
   /// Default implementation uses SizeBalanced tree strategy.
-  /// Override this method to use a different tree implementation (e.g., AdaptiveRadix).
+  /// Override this method to use a different tree implementation
+  /// (e.g., AdaptiveRadix).
   fn insert(&mut self, root: Option<T>, idx: T) -> Option<T>
   where
     Self: crate::SizeBalanced<T>,
@@ -124,7 +125,8 @@ pub trait Tree<T: Idx> {
   /// Remove index from tree, returns new root (None if tree empty)
   ///
   /// Default implementation uses SizeBalanced tree strategy.
-  /// Override this method to use a different tree implementation (e.g., AdaptiveRadix).
+  /// Override this method to use a different tree implementation
+  /// (e.g., AdaptiveRadix).
   fn remove(&mut self, root: Option<T>, idx: T) -> Option<T>
   where
     Self: crate::SizeBalanced<T>,
