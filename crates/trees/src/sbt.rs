@@ -90,13 +90,14 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
   ///
   /// Returns new root (None if tree empty)
   ///
-  /// Note: If the index doesn't exist in the tree, returns the original root unchanged
+  /// If the index doesn't exist in the tree,
+  /// returns the original root unchanged
   fn remove_sbt(&mut self, root: Option<T>, idx: T) -> Option<T> {
     let mut root_val = root?;
     match unsafe { self.remove_impl(&mut root_val, idx) } {
-      Some(true) => None, // Tree became empty
+      Some(true) => None,            // Tree became empty
       Some(false) => Some(root_val), // Removed successfully, tree not empty
-      None => root, // Value not found, return original root
+      None => root,                  // Value not found, return original root
     }
   }
 
@@ -190,13 +191,11 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
 
   /// Internal remove implementation - returns true if tree becomes empty
   ///
-  /// Based on C# reference from linksplatform/Collections.Methods
-  /// Decrements sizes while traversing to find node (not after removal)
-  ///
   /// Returns:
   /// - Some(true): Tree became empty after removal
   /// - Some(false): Removal successful, tree not empty
-  /// - None: Value not found in tree (tree state may be corrupted - caller must handle)
+  /// - None: Value not found in tree
+  /// (tree state may be corrupted - caller must handle)
   ///
   /// # Safety
   ///
@@ -205,7 +204,7 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
   ///
   /// # Important
   ///
-  /// Callers should ensure the value exists in the tree before calling this function.
+  /// Ensure that value exists in the tree before calling this function.
   /// If the value doesn't exist, the tree's size metadata may be corrupted.
   unsafe fn remove_impl(&mut self, root: *mut T, idx: T) -> Option<bool> {
     // Traverse to find the node, decrementing sizes along the path
