@@ -35,7 +35,7 @@ impl<T: Idx> BenchStore<T> for common::ArtStore<T> {
 // Helper function for insert benchmarks
 fn bench_insert_impl<S, T>(n: usize) -> impl FnMut()
 where
-  S: BenchStore<T>,
+  S: BenchStore<T> + trees::SizeBalanced<T>,
   T: Idx + From<usize>,
 {
   let mut store = S::new(n);
@@ -52,7 +52,7 @@ where
 // Helper function for insert and search benchmarks
 fn bench_insert_and_search_impl<S, T>(n: usize) -> impl FnMut()
 where
-  S: BenchStore<T>,
+  S: BenchStore<T> + trees::SizeBalanced<T>,
   T: Idx + From<usize>,
 {
   let mut store = S::new(n);
@@ -71,7 +71,7 @@ where
 // Helper function for full cycle benchmarks
 fn bench_insert_remove_impl<S, T>(n: usize) -> impl FnMut()
 where
-  S: BenchStore<T>,
+  S: BenchStore<T> + trees::SizeBalanced<T>,
   T: Idx + From<usize>,
 {
   let mut store = S::new(n);
@@ -94,7 +94,7 @@ fn register_benchmarks<S, T>(
   tree_name: &str,
   sizes: &[usize],
 ) where
-  S: BenchStore<T> + 'static,
+  S: BenchStore<T> + trees::SizeBalanced<T> + 'static,
   T: Idx + From<usize> + 'static,
 {
   // Insert-only benchmarks
