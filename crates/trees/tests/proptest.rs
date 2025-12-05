@@ -220,7 +220,6 @@ proptest! {
 
   // Note: Disabled temporarily - too slow for CI (investigating optimization)
   #[test]
-  #[ignore]
   fn prop_insert_remove_stress_test(
     ops in prop::collection::vec(
       (1usize..200, prop::bool::ANY),
