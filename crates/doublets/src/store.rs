@@ -70,11 +70,11 @@ impl<'a, M: RawMem<Item = RawLink>> Tree<usize> for SourceTree<'a, M> {
   }
 
   fn insert(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
-    self.insert_sbt(root, idx)
+    SizeBalanced::insert_sbt(self, root, idx)
   }
 
   fn remove(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
-    self.remove_sbt(root, idx)
+    SizeBalanced::remove_sbt(self, root, idx)
   }
 }
 
@@ -119,11 +119,11 @@ impl<'a, M: RawMem<Item = RawLink>> Tree<usize> for TargetTree<'a, M> {
   }
 
   fn insert(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
-    self.insert_sbt(root, idx)
+    SizeBalanced::insert_sbt(self, root, idx)
   }
 
   fn remove(&mut self, root: Option<usize>, idx: usize) -> Option<usize> {
-    self.remove_sbt(root, idx)
+    SizeBalanced::remove_sbt(self, root, idx)
   }
 }
 
