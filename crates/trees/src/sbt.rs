@@ -244,40 +244,32 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
         // Two children: find leftmost node in right subtree
         let leftmost = self.leftest(right_child);
 
-        // Set up the leftmost node as replacement
-        self.set_left(leftmost, Some(left_child));
-
-        // Handle the right subtree after detaching leftmost
-        if leftmost == right_child {
+        // CRITICAL: Detach leftmost FIRST before modifying it
+        // Setting leftmost.left before detaching gives it two children,
+        // which causes infinite recursion in detach_node
+        let new_right = if leftmost == right_child {
           // The right child itself is the leftmost - just use its right child
-          let new_right = self.right(leftmost);
-          if let Some(new_right_val) = new_right {
-            self.set_right(leftmost, Some(new_right_val));
-            let left_size = self.size(left_child)?;
-            let right_size = self.size(new_right_val)?;
-            self.set_size(leftmost, left_size + right_size + 1);
-          } else {
-            self.set_right(leftmost, None);
-            let left_size = self.size(left_child)?;
-            self.set_size(leftmost, left_size + 1);
-          }
+          self.right(leftmost)
         } else {
-          // Leftmost is deeper in the right subtree - detach it
+          // Leftmost is deeper in the right subtree - detach it first
           let right_ptr =
             self.right_mut(node_to_detach).map(|r| r as *mut T)?;
           self.detach_node(right_ptr, leftmost)?;
+          self.right(node_to_detach)
+        };
 
-          let new_right = self.right(node_to_detach);
-          if let Some(new_right_val) = new_right {
-            self.set_right(leftmost, Some(new_right_val));
-            let left_size = self.size(left_child)?;
-            let right_size = self.size(new_right_val)?;
-            self.set_size(leftmost, left_size + right_size + 1);
-          } else {
-            self.set_right(leftmost, None);
-            let left_size = self.size(left_child)?;
-            self.set_size(leftmost, left_size + 1);
-          }
+        // Now set up the leftmost node as replacement (after detaching)
+        self.set_left(leftmost, Some(left_child));
+
+        if let Some(new_right_val) = new_right {
+          self.set_right(leftmost, Some(new_right_val));
+          let left_size = self.size(left_child)?;
+          let right_size = self.size(new_right_val)?;
+          self.set_size(leftmost, left_size + right_size + 1);
+        } else {
+          self.set_right(leftmost, None);
+          let left_size = self.size(left_child)?;
+          self.set_size(leftmost, left_size + 1);
         }
 
         Some(leftmost)
@@ -339,12 +331,22 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
 
     let replacement = match (left, right) {
       (Some(left_child), Some(right_child)) => {
+        // Two children: find leftmost node in right subtree
         let leftmost = self.leftest(right_child);
-        let right_ptr = self.right_mut(*current).map(|r| r as *mut T)?;
-        self.detach_node(right_ptr, leftmost)?;
 
+        // CRITICAL: Detach leftmost FIRST before modifying it
+        let new_right = if leftmost == right_child {
+          // The right child itself is the leftmost - just use its right child
+          self.right(leftmost)
+        } else {
+          // Leftmost is deeper in the right subtree - detach it first
+          let right_ptr = self.right_mut(*current).map(|r| r as *mut T)?;
+          self.detach_node(right_ptr, leftmost)?;
+          self.right(*current)
+        };
+
+        // Now set up the leftmost node as replacement (after detaching)
         self.set_left(leftmost, Some(left_child));
-        let new_right = self.right(*current);
 
         if let Some(new_right_val) = new_right {
           self.set_right(leftmost, Some(new_right_val));
@@ -352,6 +354,7 @@ pub trait SizeBalanced<T: Idx>: Tree<T> {
           let right_size = self.size(new_right_val)?;
           self.set_size(leftmost, left_size + right_size + 1);
         } else {
+          self.set_right(leftmost, None);
           let left_size = self.size(left_child)?;
           self.set_size(leftmost, left_size + 1);
         }
