@@ -10,9 +10,6 @@ pub use {
   error::{Error, Result},
   handler::{Flow, IntoFlow, ReadHandler, WriteHandler},
   link::{Index, Link},
-  store::{
-    ArtStrategy, SbtStrategy, Store, TreeStrategy, create_heap_store,
-    create_heap_store_with_strategies,
-  },
+  store::{ArtStrategy, RawLink, SbtStrategy, Store, TreeStrategy, create_heap_store},
   traits::{Doublets, Links},
 };

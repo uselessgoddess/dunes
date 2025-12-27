@@ -66,17 +66,20 @@ const NC_TARGET: usize = 3; // Change includes target
 ///
 /// Stores source, target, and tree index information for efficient
 /// searching by source and target using size-balanced trees.
+///
+/// This is the internal representation used by [`Store`]. Users should
+/// typically interact with [`Link`] instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(C)]
 pub struct RawLink {
-  source: usize,
-  target: usize,
+  pub(crate) source: usize,
+  pub(crate) target: usize,
   /// Tree node for indexing by source
-  source_tree: Node<usize>,
+  pub(crate) source_tree: Node<usize>,
   /// Tree node for indexing by target
-  target_tree: Node<usize>,
+  pub(crate) target_tree: Node<usize>,
   /// Special marker: usize::MAX if in free list, 0 otherwise
-  is_free: usize,
+  pub(crate) is_free: usize,
 }
 
 unsafe impl bytemuck::Pod for RawLink {}
@@ -229,18 +232,26 @@ impl<'a, M: RawMem<Item = RawLink>, S> AdaptiveRadix<usize>
 ///   (SbtStrategy or ArtStrategy)
 ///
 /// # Examples
+///
+/// The recommended way to create a store is using [`create_heap_store`]:
+///
 /// ```
-/// use doublets::{SbtStrategy, ArtStrategy, create_heap_store_with_strategies};
+/// use doublets::{Doublets, create_heap_store};
 ///
-/// // Create a store with SBT for both source and target trees
-/// let mut sbt_store =
-///   create_heap_store_with_strategies::<usize, SbtStrategy, SbtStrategy>()
-///     .unwrap();
+/// let mut store = create_heap_store::<usize>().unwrap();
+/// let a = store.create_point().unwrap();
+/// ```
 ///
-/// // Create a store with mixed strategies
-/// let mut mixed_store =
-///   create_heap_store_with_strategies::<usize, SbtStrategy, ArtStrategy>()
-///     .unwrap();
+/// For custom tree strategies, use `Store::new()` directly:
+///
+/// ```
+/// use doublets::{Doublets, SbtStrategy, ArtStrategy, RawLink, Store};
+/// use mem::Alloc;
+///
+/// // Create a store with SBT for source and ART for target indexing
+/// let mut store: Store<usize, Alloc<RawLink>, SbtStrategy, ArtStrategy> =
+///   Store::new(Alloc::new()).unwrap();
+/// let a = store.create_point().unwrap();
 /// ```
 pub struct Store<
   T,
@@ -448,6 +459,10 @@ where
   }
 
   /// Traverse source tree calling handler for all links with matching source
+  ///
+  /// Provides O(log n + k) performance for source-based queries where k
+  /// is the number of matches. Currently unused in favor of linear scan due
+  /// to tree corruption issues in some edge cases. Kept for future optimization.
   #[allow(dead_code)]
   fn each_by_source<H: ReadHandler<T>>(
     &self,
@@ -458,6 +473,10 @@ where
   }
 
   /// Traverse target tree calling handler for all links with matching target
+  ///
+  /// Provides O(log n + k) performance for target-based queries where k
+  /// is the number of matches. Currently unused in favor of linear scan due
+  /// to tree corruption issues in some edge cases. Kept for future optimization.
   #[allow(dead_code)]
   fn each_by_target<H: ReadHandler<T>>(
     &self,
@@ -468,6 +487,8 @@ where
   }
 
   /// Recursively traverse source tree for links with matching source
+  ///
+  /// Internal helper for tree-based source queries.
   #[allow(dead_code)]
   fn traverse_source_tree<H: ReadHandler<T>>(
     &self,
@@ -584,6 +605,8 @@ where
   }
 
   /// Recursively traverse target tree for links with matching target
+  ///
+  /// Internal helper for tree-based target queries.
   #[allow(dead_code)]
   fn traverse_target_tree<H: ReadHandler<T>>(
     &self,
@@ -964,22 +987,23 @@ where
 }
 
 /// Create a doublets store with heap allocation using SBT
-/// (Size-Balanced Tree) for both source and target trees
+/// (Size-Balanced Tree) for both source and target trees.
+///
+/// This is the recommended way to create a new store with sensible defaults.
+///
+/// # Example
+/// ```
+/// use doublets::{Doublets, create_heap_store};
+///
+/// let mut store = create_heap_store::<usize>().unwrap();
+/// let a = store.create_point().unwrap();
+/// let b = store.create_point().unwrap();
+/// let c = store.create_link(a, b).unwrap();
+/// ```
 pub fn create_heap_store<T>()
 -> Result<Store<T, Alloc<RawLink>, SbtStrategy, SbtStrategy>, T>
 where
   T: Index,
-{
-  Store::new(Alloc::new())
-}
-
-/// Create a doublets store with heap allocation and custom tree strategies
-pub fn create_heap_store_with_strategies<T, SourceStrategy, TargetStrategy>()
--> Result<Store<T, Alloc<RawLink>, SourceStrategy, TargetStrategy>, T>
-where
-  T: Index,
-  SourceStrategy: TreeStrategy<usize>,
-  TargetStrategy: TreeStrategy<usize>,
 {
   Store::new(Alloc::new())
 }
