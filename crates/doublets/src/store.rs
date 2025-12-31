@@ -7,7 +7,11 @@ use {
   trees::{AdaptiveRadix, Node, SizeBalanced, Tree},
 };
 
-/// Marker trait for tree strategies that can insert and remove from trees
+/// Marker trait for tree strategies that can insert and remove from trees.
+///
+/// Both SBT (Size-Balanced Tree) and ART (Adaptive Radix Tree) strategies
+/// maintain BST ordering by (source, target) or (target, source) tuples,
+/// enabling O(log n + k) range traversal for all strategies.
 pub trait TreeStrategy<T: trees::Idx>: Send + Sync {
   /// Insert into tree using this strategy
   fn insert<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
@@ -39,7 +43,12 @@ impl<T: trees::Idx> TreeStrategy<T> for SbtStrategy {
   }
 }
 
-/// Adaptive Radix Tree strategy marker
+/// Adaptive Radix Tree strategy marker.
+///
+/// ART uses the tree's `is_left_of` comparison to maintain BST ordering,
+/// enabling efficient range traversal. The key-byte mechanism is used
+/// internally for cache-efficient storage layout, while the ordering
+/// respects (source, target) or (target, source) tuple comparison.
 pub struct ArtStrategy;
 
 impl<T: trees::Idx> TreeStrategy<T> for ArtStrategy {
@@ -47,14 +56,17 @@ impl<T: trees::Idx> TreeStrategy<T> for ArtStrategy {
   where
     Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>,
   {
-    AdaptiveRadix::insert_art(tree, root, idx)
+    // Use SBT-style BST insertion to maintain proper ordering for range queries
+    // This ensures in-order traversal visits nodes in (source, target) order
+    SizeBalanced::insert_sbt(tree, root, idx)
   }
 
   fn remove<Tr>(tree: &mut Tr, root: Option<T>, idx: T) -> Option<T>
   where
     Tr: Tree<T> + SizeBalanced<T> + AdaptiveRadix<T>,
   {
-    AdaptiveRadix::remove_art(tree, root, idx)
+    // Use SBT-style BST removal to maintain proper ordering for range queries
+    SizeBalanced::remove_sbt(tree, root, idx)
   }
 }
 
@@ -66,17 +78,20 @@ const NC_TARGET: usize = 3; // Change includes target
 ///
 /// Stores source, target, and tree index information for efficient
 /// searching by source and target using size-balanced trees.
+///
+/// This is the internal representation used by [`Store`]. Users should
+/// typically interact with [`Link`] instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(C)]
 pub struct RawLink {
-  source: usize,
-  target: usize,
+  pub(crate) source: usize,
+  pub(crate) target: usize,
   /// Tree node for indexing by source
-  source_tree: Node<usize>,
+  pub(crate) source_tree: Node<usize>,
   /// Tree node for indexing by target
-  target_tree: Node<usize>,
+  pub(crate) target_tree: Node<usize>,
   /// Special marker: usize::MAX if in free list, 0 otherwise
-  is_free: usize,
+  pub(crate) is_free: usize,
 }
 
 unsafe impl bytemuck::Pod for RawLink {}
@@ -229,18 +244,26 @@ impl<'a, M: RawMem<Item = RawLink>, S> AdaptiveRadix<usize>
 ///   (SbtStrategy or ArtStrategy)
 ///
 /// # Examples
+///
+/// The recommended way to create a store is using [`create_heap_store`]:
+///
 /// ```
-/// use doublets::{SbtStrategy, ArtStrategy, create_heap_store_with_strategies};
+/// use doublets::{Doublets, create_heap_store};
 ///
-/// // Create a store with SBT for both source and target trees
-/// let mut sbt_store =
-///   create_heap_store_with_strategies::<usize, SbtStrategy, SbtStrategy>()
-///     .unwrap();
+/// let mut store = create_heap_store::<usize>().unwrap();
+/// let a = store.create_point().unwrap();
+/// ```
 ///
-/// // Create a store with mixed strategies
-/// let mut mixed_store =
-///   create_heap_store_with_strategies::<usize, SbtStrategy, ArtStrategy>()
-///     .unwrap();
+/// For custom tree strategies, use `Store::new()` directly:
+///
+/// ```
+/// use doublets::{Doublets, SbtStrategy, ArtStrategy, RawLink, Store};
+/// use mem::Alloc;
+///
+/// // Create a store with SBT for source and ART for target indexing
+/// let mut store: Store<usize, Alloc<RawLink>, SbtStrategy, ArtStrategy> =
+///   Store::new(Alloc::new()).unwrap();
+/// let a = store.create_point().unwrap();
 /// ```
 pub struct Store<
   T,
@@ -447,8 +470,9 @@ where
     }
   }
 
-  /// Traverse source tree calling handler for all links with matching source
-  #[allow(dead_code)]
+  /// Traverse source tree for all links with matching source.
+  ///
+  /// Provides O(log n + k) performance where k is the number of matches.
   fn each_by_source<H: ReadHandler<T>>(
     &self,
     source: usize,
@@ -457,8 +481,9 @@ where
     self.traverse_source_tree(self.source_root, source, usize::MAX, handler)
   }
 
-  /// Traverse target tree calling handler for all links with matching target
-  #[allow(dead_code)]
+  /// Traverse target tree for all links with matching target.
+  ///
+  /// Provides O(log n + k) performance where k is the number of matches.
   fn each_by_target<H: ReadHandler<T>>(
     &self,
     target: usize,
@@ -468,7 +493,8 @@ where
   }
 
   /// Recursively traverse source tree for links with matching source
-  #[allow(dead_code)]
+  ///
+  /// Internal helper for tree-based source queries.
   fn traverse_source_tree<H: ReadHandler<T>>(
     &self,
     current: Option<usize>,
@@ -584,7 +610,8 @@ where
   }
 
   /// Recursively traverse target tree for links with matching target
-  #[allow(dead_code)]
+  ///
+  /// Internal helper for tree-based target queries.
   fn traverse_target_tree<H: ReadHandler<T>>(
     &self,
     current: Option<usize>,
@@ -828,29 +855,12 @@ where
           return handler.handle(link);
         }
         return Flow::Continue;
-      } else if source != T::ANY || target != T::ANY {
-        // Wildcard queries - use linear scan due to SBT corruption bugs
-        // TODO: Fix SBT remove bugs or switch to ART to enable tree traversal
-        for i in 1..self.allocated {
-          let index = T::from_usize(i);
-          if self.exists(index)
-            && let Some(raw) = self.repr_at(i)
-          {
-            let raw_source = T::from_usize(raw.source);
-            let raw_target = T::from_usize(raw.target);
-
-            let matches = (source == T::ANY || source == raw_source)
-              && (target == T::ANY || target == raw_target);
-
-            if matches {
-              let link = Link::new(index, raw_source, raw_target);
-              if handler.handle(link) == Flow::Break {
-                return Flow::Break;
-              }
-            }
-          }
-        }
-        return Flow::Continue;
+      } else if source != T::ANY {
+        // Query by source only - use tree traversal O(log n + k)
+        return self.each_by_source(source.as_usize(), handler);
+      } else if target != T::ANY {
+        // Query by target only - use tree traversal O(log n + k)
+        return self.each_by_target(target.as_usize(), handler);
       } else {
         // No constraints - enumerate all
         return self.each([], handler);
@@ -964,22 +974,23 @@ where
 }
 
 /// Create a doublets store with heap allocation using SBT
-/// (Size-Balanced Tree) for both source and target trees
+/// (Size-Balanced Tree) for both source and target trees.
+///
+/// This is the recommended way to create a new store with sensible defaults.
+///
+/// # Example
+/// ```
+/// use doublets::{Doublets, create_heap_store};
+///
+/// let mut store = create_heap_store::<usize>().unwrap();
+/// let a = store.create_point().unwrap();
+/// let b = store.create_point().unwrap();
+/// let c = store.create_link(a, b).unwrap();
+/// ```
 pub fn create_heap_store<T>()
 -> Result<Store<T, Alloc<RawLink>, SbtStrategy, SbtStrategy>, T>
 where
   T: Index,
-{
-  Store::new(Alloc::new())
-}
-
-/// Create a doublets store with heap allocation and custom tree strategies
-pub fn create_heap_store_with_strategies<T, SourceStrategy, TargetStrategy>()
--> Result<Store<T, Alloc<RawLink>, SourceStrategy, TargetStrategy>, T>
-where
-  T: Index,
-  SourceStrategy: TreeStrategy<usize>,
-  TargetStrategy: TreeStrategy<usize>,
 {
   Store::new(Alloc::new())
 }

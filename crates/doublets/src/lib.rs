@@ -11,8 +11,7 @@ pub use {
   handler::{Flow, IntoFlow, ReadHandler, WriteHandler},
   link::{Index, Link},
   store::{
-    ArtStrategy, SbtStrategy, Store, TreeStrategy, create_heap_store,
-    create_heap_store_with_strategies,
+    ArtStrategy, RawLink, SbtStrategy, Store, TreeStrategy, create_heap_store,
   },
   traits::{Doublets, Links},
 };

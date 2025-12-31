@@ -1,4 +1,7 @@
-use doublets::{Doublets, Flow, Link, Links, Result, create_heap_store};
+use {
+  doublets::{Doublets, Flow, Link, Links, Result, create_heap_store},
+  std::collections::HashSet,
+};
 
 #[test]
 fn test_basic_create() -> Result<(), usize> {
@@ -133,5 +136,209 @@ fn debug_rebase_full() -> Result<(), usize> {
       Link::new(d, b, d)
     ]
   );
+  Ok(())
+}
+
+/// Test tree traversal with delete operations to verify correctness
+#[test]
+fn test_tree_traversal_with_delete() -> Result<(), usize> {
+  let mut store = create_heap_store::<usize>()?;
+
+  // Create a bunch of points and links
+  let a = store.create_point()?;
+  let b = store.create_point()?;
+  let c = store.create_point()?;
+
+  let link_ab = store.create_link(a, b)?;
+  let link_ac = store.create_link(a, c)?;
+  let link_bc = store.create_link(b, c)?;
+  let link_ba = store.create_link(b, a)?;
+  let link_ca = store.create_link(c, a)?;
+
+  println!("Created:");
+  println!("  Points: a={}, b={}, c={}", a, b, c);
+  println!(
+    "  Links: ab={}, ac={}, bc={}, ba={}, ca={}",
+    link_ab, link_ac, link_bc, link_ba, link_ca
+  );
+
+  // Query by source = a: should find a (point), link_ab, link_ac
+  let mut found: HashSet<usize> = HashSet::new();
+  store.each([0, a, 0], &mut |link: Link<usize>| {
+    found.insert(link.index);
+    Flow::Continue
+  });
+  println!("Source={}: {:?}", a, found);
+  assert!(found.contains(&a));
+  assert!(found.contains(&link_ab));
+  assert!(found.contains(&link_ac));
+  assert_eq!(found.len(), 3);
+
+  // Delete link_ab
+  store.delete_link(link_ab)?;
+  println!("Deleted link_ab={}", link_ab);
+
+  // Query by source = a: should find a (point), link_ac only
+  found.clear();
+  store.each([0, a, 0], &mut |link: Link<usize>| {
+    found.insert(link.index);
+    Flow::Continue
+  });
+  println!("Source={} after delete: {:?}", a, found);
+  assert!(found.contains(&a));
+  assert!(found.contains(&link_ac));
+  assert!(!found.contains(&link_ab)); // Should NOT be present
+  assert_eq!(found.len(), 2);
+
+  // Query by target = a: should find a (point), link_ba, link_ca
+  found.clear();
+  store.each([0, 0, a], &mut |link: Link<usize>| {
+    found.insert(link.index);
+    Flow::Continue
+  });
+  println!("Target={}: {:?}", a, found);
+  assert!(found.contains(&a));
+  assert!(found.contains(&link_ba));
+  assert!(found.contains(&link_ca));
+  assert_eq!(found.len(), 3);
+
+  // Delete link_ca
+  store.delete_link(link_ca)?;
+  println!("Deleted link_ca={}", link_ca);
+
+  // Query by target = a: should find a (point), link_ba only
+  found.clear();
+  store.each([0, 0, a], &mut |link: Link<usize>| {
+    found.insert(link.index);
+    Flow::Continue
+  });
+  println!("Target={} after delete: {:?}", a, found);
+  assert!(found.contains(&a));
+  assert!(found.contains(&link_ba));
+  assert!(!found.contains(&link_ca)); // Should NOT be present
+  assert_eq!(found.len(), 2);
+
+  Ok(())
+}
+
+/// Test with many links to stress-test tree operations
+#[test]
+fn test_tree_traversal_stress() -> Result<(), usize> {
+  let mut store = create_heap_store::<usize>()?;
+
+  // Create 10 points
+  let points: Vec<_> = (0..10).map(|_| store.create_point().unwrap()).collect();
+
+  // Create links from each point to all others
+  let mut links = Vec::new();
+  for i in 0..10 {
+    for j in 0..10 {
+      if i != j {
+        let link = store.create_link(points[i], points[j]).unwrap();
+        links.push((link, points[i], points[j]));
+      }
+    }
+  }
+
+  println!("Created {} points and {} links", 10, links.len());
+
+  // Verify querying by source works for first point
+  let first_point = points[0];
+  let mut found: HashSet<usize> = HashSet::new();
+  store.each([0, first_point, 0], &mut |link: Link<usize>| {
+    found.insert(link.index);
+    Flow::Continue
+  });
+
+  // Should find the point itself + 9 outgoing links
+  assert_eq!(found.len(), 10, "Expected 10 links with source={}", first_point);
+  assert!(found.contains(&first_point));
+
+  // Delete all links from first point
+  for (link, source, _) in &links {
+    if *source == first_point {
+      store.delete_link(*link)?;
+    }
+  }
+
+  // Now should only find the point
+  found.clear();
+  store.each([0, first_point, 0], &mut |link: Link<usize>| {
+    found.insert(link.index);
+    Flow::Continue
+  });
+  assert_eq!(found.len(), 1);
+  assert!(found.contains(&first_point));
+
+  println!("Stress test passed!");
+  Ok(())
+}
+
+/// Test to specifically verify tree traversal after deletes
+/// This tests the scenario where linear scan is used vs tree traversal
+#[test]
+fn test_tree_vs_linear_consistency() -> Result<(), usize> {
+  let mut store = create_heap_store::<usize>()?;
+
+  // Create points and links
+  let a = store.create_point()?;
+  let b = store.create_point()?;
+  let c = store.create_point()?;
+
+  let link1 = store.create_link(a, b)?;
+  let link2 = store.create_link(a, c)?;
+  let _link3 = store.create_link(b, a)?;
+
+  // Collect results using current implementation (linear scan)
+  let mut linear_results: HashSet<usize> = HashSet::new();
+  store.each([0, a, 0], &mut |link: Link<usize>| {
+    linear_results.insert(link.index);
+    Flow::Continue
+  });
+
+  println!("Results for source={}: {:?}", a, linear_results);
+
+  // Should contain: a (point), link1, link2
+  assert!(linear_results.contains(&a), "Should contain point a");
+  assert!(linear_results.contains(&link1), "Should contain link1");
+  assert!(linear_results.contains(&link2), "Should contain link2");
+  assert_eq!(linear_results.len(), 3);
+
+  // Now delete link1 and verify again
+  store.delete_link(link1)?;
+
+  let mut after_delete: HashSet<usize> = HashSet::new();
+  store.each([0, a, 0], &mut |link: Link<usize>| {
+    after_delete.insert(link.index);
+    Flow::Continue
+  });
+
+  println!("After delete, source={}: {:?}", a, after_delete);
+
+  // Should contain: a (point), link2 only
+  assert!(after_delete.contains(&a), "Should contain point a");
+  assert!(after_delete.contains(&link2), "Should contain link2");
+  assert!(!after_delete.contains(&link1), "Should NOT contain deleted link1");
+  assert_eq!(after_delete.len(), 2);
+
+  // Create a new link that reuses the index
+  let new_link = store.create_link(c, a)?;
+  println!("New link {} reused index? {}", new_link, new_link == link1);
+
+  // Query again - should reflect new state
+  let mut final_results: HashSet<usize> = HashSet::new();
+  store.each([0, a, 0], &mut |link: Link<usize>| {
+    final_results.insert(link.index);
+    Flow::Continue
+  });
+
+  println!("Final source={}: {:?}", a, final_results);
+
+  // Should contain: a (point), link2
+  // new_link has source=c, so should NOT be in source=a results
+  assert!(final_results.contains(&a), "Should contain point a");
+  assert!(final_results.contains(&link2), "Should contain link2");
+  assert_eq!(final_results.len(), 2);
+
   Ok(())
 }

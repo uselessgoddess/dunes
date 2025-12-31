@@ -233,6 +233,7 @@ dependencies = [
  "criterion",
  "mem",
  "paste",
+ "proptest",
  "thiserror",
  "trees",
 ]
